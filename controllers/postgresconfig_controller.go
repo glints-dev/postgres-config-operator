@@ -32,6 +32,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	postgresv1alpha1 "github.com/glints-dev/postgres-config-operator/api/v1alpha1"
 )
@@ -120,7 +121,11 @@ func (r *PostgresConfigReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		"successfully connected to PostgreSQL",
 	)
 
-	reconcileResult := r.ReconcileWithConnAndConfig(ctx, conn, postgresConfig)
+	if err := r.HandleFinalizers(ctx, conn, postgresConfig); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	reconcileResult := r.reconcileWithConnAndConfig(ctx, conn, postgresConfig)
 	if reconcileResult.Requeue {
 		return reconcileResult, nil
 	}
@@ -128,16 +133,80 @@ func (r *PostgresConfigReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	return ctrl.Result{}, nil
 }
 
-// ReconcileWithConnAndConfig performs the reconcillation with the given
+// HandleFinalizers implements the logic required to handle deletes.
+func (r *PostgresConfigReconciler) HandleFinalizers(
+	ctx context.Context,
+	conn *pgx.Conn,
+	config *postgresv1alpha1.PostgresConfig,
+) error {
+	const finalizerName = "postgres.glints.com/finalizer"
+
+	if config.ObjectMeta.DeletionTimestamp.IsZero() {
+		// The object is not being deleted.
+		if !containsString(config.GetFinalizers(), finalizerName) {
+			controllerutil.AddFinalizer(config, finalizerName)
+			if err := r.Update(ctx, config); err != nil {
+				return err
+			}
+		}
+	} else {
+		// The object is being deleted.
+		if containsString(config.GetFinalizers(), finalizerName) {
+			if err := r.deleteExternalResources(ctx, conn, config); err != nil {
+				return err
+			}
+
+			controllerutil.RemoveFinalizer(config, finalizerName)
+			if err := r.Update(ctx, config); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func containsString(slice []string, s string) bool {
+	for _, item := range slice {
+		if item == s {
+			return true
+		}
+	}
+	return false
+}
+
+// deleteExternalResources removes all resources associated with the given
+// PostgresConfig. Note that this will also remove resources not originally
+// managed by the operator, so use with care.
+func (r *PostgresConfigReconciler) deleteExternalResources(
+	ctx context.Context,
+	conn *pgx.Conn,
+	config *postgresv1alpha1.PostgresConfig,
+) error {
+	for _, publication := range config.Spec.Publications {
+		query := fmt.Sprintf(
+			"DROP PUBLICATION %s",
+			pgx.Identifier{publication.Name}.Sanitize(),
+		)
+
+		if _, err := conn.Exec(ctx, query); err != nil {
+			return fmt.Errorf("failed to drop publication: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// reconcileWithConnAndConfig performs the reconcillation with the given
 // connection and configuration.
-func (r *PostgresConfigReconciler) ReconcileWithConnAndConfig(
+func (r *PostgresConfigReconciler) reconcileWithConnAndConfig(
 	ctx context.Context,
 	conn *pgx.Conn,
 	config *postgresv1alpha1.PostgresConfig,
 ) ctrl.Result {
 	r.Log.Info("reconcilling publications")
 
-	if err := r.ReconcilePublications(
+	if err := r.reconcilePublications(
 		ctx,
 		conn,
 		config.Spec.Publications,
@@ -163,15 +232,15 @@ func (r *PostgresConfigReconciler) ReconcileWithConnAndConfig(
 	return ctrl.Result{}
 }
 
-// ReconcilePublications ensures that publications on the PostgreSQL server are
+// reconcilePublications ensures that publications on the PostgreSQL server are
 // consistent with the given configuration.
-func (r *PostgresConfigReconciler) ReconcilePublications(
+func (r *PostgresConfigReconciler) reconcilePublications(
 	ctx context.Context,
 	conn *pgx.Conn,
 	publications []postgresv1alpha1.PostgresPublication,
 ) error {
 	for _, publication := range publications {
-		if err := r.ReconcilePublication(ctx, conn, publication); err != nil {
+		if err := r.reconcilePublication(ctx, conn, publication); err != nil {
 			return fmt.Errorf("failed to reconcile publication: %w", err)
 		}
 	}
@@ -179,15 +248,15 @@ func (r *PostgresConfigReconciler) ReconcilePublications(
 	return nil
 }
 
-// ReconcilePublication ensures that the given publication is reconciled.
-func (r *PostgresConfigReconciler) ReconcilePublication(
+// reconcilePublication ensures that the given publication is reconciled.
+func (r *PostgresConfigReconciler) reconcilePublication(
 	ctx context.Context,
 	conn *pgx.Conn,
 	publication postgresv1alpha1.PostgresPublication,
 ) error {
 	var err error
 
-	query := r.BuildCreatePublicationQuery(publication)
+	query := r.buildCreatePublicationQuery(publication)
 	r.Log.Info(fmt.Sprintf("executing query: %s", query))
 	if len(publication.Operations) > 0 {
 		_, err = conn.Exec(ctx, query, strings.Join(publication.Operations, ", "))
@@ -206,7 +275,7 @@ func (r *PostgresConfigReconciler) ReconcilePublication(
 	}
 
 	if !publicationCreated {
-		if err := r.AlterExistingPublication(ctx, conn, publication); err != nil {
+		if err := r.alterExistingPublication(ctx, conn, publication); err != nil {
 			return fmt.Errorf("failed to alter existing publication: %w", err)
 		}
 	}
@@ -215,7 +284,7 @@ func (r *PostgresConfigReconciler) ReconcilePublication(
 }
 
 // ReconcilePublication builds the query to create a publication.
-func (r *PostgresConfigReconciler) BuildCreatePublicationQuery(
+func (r *PostgresConfigReconciler) buildCreatePublicationQuery(
 	publication postgresv1alpha1.PostgresPublication,
 ) string {
 	publicationIdentifer := pgx.Identifier{publication.Name}
@@ -249,9 +318,9 @@ func (r *PostgresConfigReconciler) BuildCreatePublicationQuery(
 	)
 }
 
-// AlterExistingPublication modifies an existing publication to the desired
+// alterExistingPublication modifies an existing publication to the desired
 // state as described in publication.
-func (r *PostgresConfigReconciler) AlterExistingPublication(
+func (r *PostgresConfigReconciler) alterExistingPublication(
 	ctx context.Context,
 	conn *pgx.Conn,
 	publication postgresv1alpha1.PostgresPublication,
