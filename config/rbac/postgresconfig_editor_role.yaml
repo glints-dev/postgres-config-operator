@@ -1,0 +1,24 @@
+# permissions for end users to edit postgresconfigs.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: postgresconfig-editor-role
+rules:
+- apiGroups:
+  - postgres.glints.com
+  resources:
+  - postgresconfigs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - postgres.glints.com
+  resources:
+  - postgresconfigs/status
+  verbs:
+  - get

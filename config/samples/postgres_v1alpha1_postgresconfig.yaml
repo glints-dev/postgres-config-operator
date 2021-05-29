@@ -1,0 +1,16 @@
+apiVersion: postgres.glints.com/v1alpha1
+kind: PostgresConfig
+metadata:
+  name: postgresconfig-sample
+spec:
+  postgresRef:
+    host: postgres.default
+    port: 5432
+    database: postgres
+    secretRef:
+      secretName: postgres
+  publications:
+  - name: test_publication
+    tables:
+    - name: test
+      schema: public
