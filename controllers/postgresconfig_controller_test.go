@@ -141,23 +141,22 @@ var _ = Context("Inside of a new Postgres instance", func() {
 
 			waitForPublication(ctx, publicationName)
 
-			// Obtain a fresh copy of the resource, as a finalizer could have been
-			// added onto it.
-			err = k8sClient.Get(ctx, types.NamespacedName{
-				Namespace: namespace.Name,
-				Name:      "publication-test",
-			}, postgresConfig)
-			Expect(err).NotTo(HaveOccurred(), "failed to get latest PostgresConfig resource")
+			Eventually(func() error {
+				err := k8sClient.Get(ctx, types.NamespacedName{
+					Namespace: namespace.Name,
+					Name:      "publication-test",
+				}, postgresConfig)
+				Expect(err).NotTo(HaveOccurred(), "failed to get latest PostgresConfig resource")
 
-			postgresConfig.Spec.Publications[0].Tables = append(
-				postgresConfig.Spec.Publications[0].Tables,
-				postgresv1alpha1.PostgresTableIdentifier{
-					Name:   "users",
-					Schema: "public",
-				},
-			)
-			err = k8sClient.Update(ctx, postgresConfig)
-			Expect(err).NotTo(HaveOccurred(), "failed to update PostgresConfig resource")
+				postgresConfig.Spec.Publications[0].Tables = append(
+					postgresConfig.Spec.Publications[0].Tables,
+					postgresv1alpha1.PostgresTableIdentifier{
+						Name:   "users",
+						Schema: "public",
+					},
+				)
+				return k8sClient.Update(ctx, postgresConfig)
+			}).ShouldNot(HaveOccurred(), "failed to update PostgresConfig resource")
 
 			Eventually(func() int {
 				row := postgresConn.QueryRow(
@@ -214,20 +213,19 @@ var _ = Context("Inside of a new Postgres instance", func() {
 
 			waitForPublication(ctx, publicationName)
 
-			// Obtain a fresh copy of the resource, as a finalizer could have been
-			// added onto it.
-			err = k8sClient.Get(ctx, types.NamespacedName{
-				Namespace: namespace.Name,
-				Name:      "publication-test",
-			}, postgresConfig)
-			Expect(err).NotTo(HaveOccurred(), "failed to get latest PostgresConfig resource")
+			Eventually(func() error {
+				err := k8sClient.Get(ctx, types.NamespacedName{
+					Namespace: namespace.Name,
+					Name:      "publication-test",
+				}, postgresConfig)
+				Expect(err).NotTo(HaveOccurred(), "failed to get latest PostgresConfig resource")
 
-			postgresConfig.Spec.Publications[0].Tables = []postgresv1alpha1.PostgresTableIdentifier{
-				postgresConfig.Spec.Publications[0].Tables[0],
-			}
+				postgresConfig.Spec.Publications[0].Tables = []postgresv1alpha1.PostgresTableIdentifier{
+					postgresConfig.Spec.Publications[0].Tables[0],
+				}
 
-			err = k8sClient.Update(ctx, postgresConfig)
-			Expect(err).NotTo(HaveOccurred(), "failed to update PostgresConfig resource")
+				return k8sClient.Update(ctx, postgresConfig)
+			}).ShouldNot(HaveOccurred(), "failed to update PostgresConfig resource")
 
 			Eventually(func() int {
 				row := postgresConn.QueryRow(
@@ -278,17 +276,16 @@ var _ = Context("Inside of a new Postgres instance", func() {
 
 			waitForPublication(ctx, publicationName)
 
-			// Obtain a fresh copy of the resource, as a finalizer could have been
-			// added onto it.
-			err = k8sClient.Get(ctx, types.NamespacedName{
-				Namespace: namespace.Name,
-				Name:      "publication-test",
-			}, postgresConfig)
-			Expect(err).NotTo(HaveOccurred(), "failed to get latest PostgresConfig resource")
+			Eventually(func() error {
+				err := k8sClient.Get(ctx, types.NamespacedName{
+					Namespace: namespace.Name,
+					Name:      "publication-test",
+				}, postgresConfig)
+				Expect(err).NotTo(HaveOccurred(), "failed to get latest PostgresConfig resource")
 
-			postgresConfig.Spec.Publications[0].Operations = []string{"insert", "delete"}
-			err = k8sClient.Update(ctx, postgresConfig)
-			Expect(err).NotTo(HaveOccurred(), "failed to update PostgresConfig resource")
+				postgresConfig.Spec.Publications[0].Operations = []string{"insert", "delete"}
+				return k8sClient.Update(ctx, postgresConfig)
+			}).ShouldNot(HaveOccurred(), "failed to update PostgresConfig resource")
 
 			Eventually(func() bool {
 				row := postgresConn.QueryRow(
