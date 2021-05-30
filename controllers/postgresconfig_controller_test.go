@@ -42,7 +42,7 @@ var _ = Context("Inside of a new Postgres instance", func() {
 				},
 				Spec: postgresv1alpha1.PostgresConfigSpec{
 					PostgresRef: PostgresContainerRef(ctx),
-					Publications: []postgresv1alpha1.PostgresPublication{
+					Publications: []postgresv1alpha1.Publication{
 						{
 							Name: publicationName,
 							Tables: []postgresv1alpha1.PostgresTableIdentifier{
@@ -73,7 +73,7 @@ var _ = Context("Inside of a new Postgres instance", func() {
 				},
 				Spec: postgresv1alpha1.PostgresConfigSpec{
 					PostgresRef: PostgresContainerRef(ctx),
-					Publications: []postgresv1alpha1.PostgresPublication{
+					Publications: []postgresv1alpha1.Publication{
 						{
 							Name: publicationName,
 							Tables: []postgresv1alpha1.PostgresTableIdentifier{
@@ -122,7 +122,7 @@ var _ = Context("Inside of a new Postgres instance", func() {
 				},
 				Spec: postgresv1alpha1.PostgresConfigSpec{
 					PostgresRef: PostgresContainerRef(ctx),
-					Publications: []postgresv1alpha1.PostgresPublication{
+					Publications: []postgresv1alpha1.Publication{
 						{
 							Name: publicationName,
 							Tables: []postgresv1alpha1.PostgresTableIdentifier{
@@ -191,7 +191,7 @@ var _ = Context("Inside of a new Postgres instance", func() {
 				},
 				Spec: postgresv1alpha1.PostgresConfigSpec{
 					PostgresRef: PostgresContainerRef(ctx),
-					Publications: []postgresv1alpha1.PostgresPublication{
+					Publications: []postgresv1alpha1.Publication{
 						{
 							Name: publicationName,
 							Tables: []postgresv1alpha1.PostgresTableIdentifier{
@@ -259,7 +259,7 @@ var _ = Context("Inside of a new Postgres instance", func() {
 				},
 				Spec: postgresv1alpha1.PostgresConfigSpec{
 					PostgresRef: PostgresContainerRef(ctx),
-					Publications: []postgresv1alpha1.PostgresPublication{
+					Publications: []postgresv1alpha1.Publication{
 						{
 							Name: publicationName,
 							Tables: []postgresv1alpha1.PostgresTableIdentifier{
@@ -318,7 +318,7 @@ var _ = Context("Inside of a new Postgres instance", func() {
 				},
 				Spec: postgresv1alpha1.PostgresConfigSpec{
 					PostgresRef: PostgresContainerRef(ctx),
-					Publications: []postgresv1alpha1.PostgresPublication{
+					Publications: []postgresv1alpha1.Publication{
 						{
 							Name: publicationName,
 							Tables: []postgresv1alpha1.PostgresTableIdentifier{

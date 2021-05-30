@@ -31,7 +31,7 @@ type PostgresConfigSpec struct {
 	PostgresRef PostgresRef `json:"postgresRef"`
 
 	// Publications is a list of publications to be created
-	Publications []PostgresPublication `json:"publications,omitempty"`
+	Publications []Publication `json:"publications,omitempty"`
 }
 
 // PostgresRef is a reference to a PostgreSQL server
@@ -50,9 +50,9 @@ type PostgresRef struct {
 	SecretRef SecretRef `json:"secretRef"`
 }
 
-// PostgresPublication represents a PUBLICATION
+// Publication represents a PUBLICATION
 // https://www.postgresql.org/docs/current/sql-createpublication.html
-type PostgresPublication struct {
+type Publication struct {
 	// Name is the name of the publication to create
 	Name string `json:"name"`
 

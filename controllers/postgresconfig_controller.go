@@ -246,7 +246,7 @@ func (r *PostgresConfigReconciler) reconcileWithConnAndConfig(
 func (r *PostgresConfigReconciler) reconcilePublications(
 	ctx context.Context,
 	conn *pgx.Conn,
-	publications []postgresv1alpha1.PostgresPublication,
+	publications []postgresv1alpha1.Publication,
 ) error {
 	for _, publication := range publications {
 		if err := r.reconcilePublication(ctx, conn, publication); err != nil {
@@ -261,7 +261,7 @@ func (r *PostgresConfigReconciler) reconcilePublications(
 func (r *PostgresConfigReconciler) reconcilePublication(
 	ctx context.Context,
 	conn *pgx.Conn,
-	publication postgresv1alpha1.PostgresPublication,
+	publication postgresv1alpha1.Publication,
 ) error {
 	var err error
 
@@ -294,7 +294,7 @@ func (r *PostgresConfigReconciler) reconcilePublication(
 
 // ReconcilePublication builds the query to create a publication.
 func (r *PostgresConfigReconciler) buildCreatePublicationQuery(
-	publication postgresv1alpha1.PostgresPublication,
+	publication postgresv1alpha1.Publication,
 	conn *pgconn.PgConn,
 ) (string, error) {
 	publicationIdentifer := pgx.Identifier{publication.Name}
@@ -341,7 +341,7 @@ func (r *PostgresConfigReconciler) buildCreatePublicationQuery(
 func (r *PostgresConfigReconciler) alterExistingPublication(
 	ctx context.Context,
 	conn *pgx.Conn,
-	publication postgresv1alpha1.PostgresPublication,
+	publication postgresv1alpha1.Publication,
 ) error {
 	var tableIdentifiers []string
 	for _, table := range publication.Tables {
