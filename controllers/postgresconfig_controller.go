@@ -125,7 +125,11 @@ func (r *PostgresConfigReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, err
 	}
 
-	reconcileResult := r.reconcileWithConnAndConfig(ctx, conn, postgresConfig)
+	reconcileResult, err := r.reconcileWithConnAndConfig(ctx, conn, postgresConfig)
+	if err != nil {
+		return reconcileResult, fmt.Errorf("failed to reconcile: %w", err)
+	}
+
 	if reconcileResult.Requeue {
 		return reconcileResult, nil
 	}
@@ -203,7 +207,7 @@ func (r *PostgresConfigReconciler) reconcileWithConnAndConfig(
 	ctx context.Context,
 	conn *pgx.Conn,
 	config *postgresv1alpha1.PostgresConfig,
-) ctrl.Result {
+) (ctrl.Result, error) {
 	r.Log.Info("reconcilling publications")
 
 	if err := r.reconcilePublications(
@@ -218,7 +222,7 @@ func (r *PostgresConfigReconciler) reconcileWithConnAndConfig(
 			"failed to reconcile: %v",
 			err,
 		)
-		return ctrl.Result{Requeue: true}
+		return ctrl.Result{Requeue: true}, nil
 	}
 
 	r.Log.Info("publications reconcilled successfully")
@@ -229,7 +233,12 @@ func (r *PostgresConfigReconciler) reconcileWithConnAndConfig(
 		"configuration reconcilled successfully",
 	)
 
-	return ctrl.Result{}
+	config.Status.Configured = true
+	if err := r.Status().Update(ctx, config); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to update status: %w", err)
+	}
+
+	return ctrl.Result{}, nil
 }
 
 // reconcilePublications ensures that publications on the PostgreSQL server are
