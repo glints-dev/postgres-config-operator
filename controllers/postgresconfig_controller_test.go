@@ -62,6 +62,54 @@ var _ = Context("Inside of a new Postgres instance", func() {
 			waitForPublication(ctx, publicationName)
 		})
 
+		It("should create a publication for the given table for subset of operations", func() {
+			const publicationName = "jobs"
+			createBarebonesTable(ctx, "jobs")
+
+			postgresConfig := &postgresv1alpha1.PostgresConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "publication-test",
+					Namespace: namespace.Name,
+				},
+				Spec: postgresv1alpha1.PostgresConfigSpec{
+					PostgresRef: PostgresContainerRef(ctx),
+					Publications: []postgresv1alpha1.PostgresPublication{
+						{
+							Name: publicationName,
+							Tables: []postgresv1alpha1.PostgresTableIdentifier{
+								{
+									Name:   "jobs",
+									Schema: "public",
+								},
+							},
+							Operations: []string{"insert", "delete"},
+						},
+					},
+				},
+			}
+
+			err := k8sClient.Create(ctx, postgresConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to create PostgresConfig resource")
+
+			waitForPublication(ctx, publicationName)
+
+			Eventually(func() bool {
+				row := postgresConn.QueryRow(
+					ctx,
+					"SELECT pubinsert, pubupdate, pubdelete FROM pg_publication WHERE pubname = $1",
+					publicationName,
+				)
+
+				var pubinsert bool
+				var pubupdate bool
+				var pubdelete bool
+				err := row.Scan(&pubinsert, &pubupdate, &pubdelete)
+				Expect(err).NotTo(HaveOccurred(), "failed to scan row")
+
+				return pubinsert && pubdelete && !pubupdate
+			}).Should(BeTrue())
+		})
+
 		It("should add new table to existing publication", func() {
 			const publicationName = "publication_test"
 			createBarebonesTable(ctx, "jobs")
@@ -198,6 +246,65 @@ var _ = Context("Inside of a new Postgres instance", func() {
 
 				return count
 			}).Should(Equal(1))
+		})
+
+		It("should should change subset of operations", func() {
+			const publicationName = "publication_test"
+			createBarebonesTable(ctx, "jobs")
+
+			postgresConfig := &postgresv1alpha1.PostgresConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "publication-test",
+					Namespace: namespace.Name,
+				},
+				Spec: postgresv1alpha1.PostgresConfigSpec{
+					PostgresRef: PostgresContainerRef(ctx),
+					Publications: []postgresv1alpha1.PostgresPublication{
+						{
+							Name: publicationName,
+							Tables: []postgresv1alpha1.PostgresTableIdentifier{
+								{
+									Name:   "jobs",
+									Schema: "public",
+								},
+							},
+						},
+					},
+				},
+			}
+
+			err := k8sClient.Create(ctx, postgresConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to create PostgresConfig resource")
+
+			waitForPublication(ctx, publicationName)
+
+			// Obtain a fresh copy of the resource, as a finalizer could have been
+			// added onto it.
+			err = k8sClient.Get(ctx, types.NamespacedName{
+				Namespace: namespace.Name,
+				Name:      "publication-test",
+			}, postgresConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to get latest PostgresConfig resource")
+
+			postgresConfig.Spec.Publications[0].Operations = []string{"insert", "delete"}
+			err = k8sClient.Update(ctx, postgresConfig)
+			Expect(err).NotTo(HaveOccurred(), "failed to update PostgresConfig resource")
+
+			Eventually(func() bool {
+				row := postgresConn.QueryRow(
+					ctx,
+					"SELECT pubinsert, pubupdate, pubdelete FROM pg_publication WHERE pubname = $1",
+					publicationName,
+				)
+
+				var pubinsert bool
+				var pubupdate bool
+				var pubdelete bool
+				err := row.Scan(&pubinsert, &pubupdate, &pubdelete)
+				Expect(err).NotTo(HaveOccurred(), "failed to scan row")
+
+				return pubinsert && pubdelete && !pubupdate
+			}).Should(BeTrue())
 		})
 
 		It("should delete publication", func() {

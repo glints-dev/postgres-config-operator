@@ -256,13 +256,13 @@ func (r *PostgresConfigReconciler) reconcilePublication(
 ) error {
 	var err error
 
-	query := r.buildCreatePublicationQuery(publication)
-	r.Log.Info(fmt.Sprintf("executing query: %s", query))
-	if len(publication.Operations) > 0 {
-		_, err = conn.Exec(ctx, query, strings.Join(publication.Operations, ", "))
-	} else {
-		_, err = conn.Exec(ctx, query)
+	query, err := r.buildCreatePublicationQuery(publication, conn.PgConn())
+	if err != nil {
+		return fmt.Errorf("failed to build create publication query: %w", err)
 	}
+
+	r.Log.Info(fmt.Sprintf("executing query: %s", query))
+	_, err = conn.Exec(ctx, query)
 
 	publicationCreated := true
 	if err != nil {
@@ -286,7 +286,8 @@ func (r *PostgresConfigReconciler) reconcilePublication(
 // ReconcilePublication builds the query to create a publication.
 func (r *PostgresConfigReconciler) buildCreatePublicationQuery(
 	publication postgresv1alpha1.PostgresPublication,
-) string {
+	conn *pgconn.PgConn,
+) (string, error) {
 	publicationIdentifer := pgx.Identifier{publication.Name}
 
 	var forTablePart string
@@ -304,7 +305,15 @@ func (r *PostgresConfigReconciler) buildCreatePublicationQuery(
 
 	var withPublicationParameterPart string
 	if len(publication.Operations) > 0 {
-		withPublicationParameterPart = fmt.Sprintf("WITH (publish = $1)")
+		escapedOperations, err := conn.EscapeString(strings.Join(publication.Operations, ", "))
+		if err != nil {
+			return "", fmt.Errorf("failed to escape string: %w", err)
+		}
+
+		withPublicationParameterPart = fmt.Sprintf(
+			"WITH (publish = '%s')",
+			escapedOperations,
+		)
 	}
 
 	return strings.Join(
@@ -315,7 +324,7 @@ func (r *PostgresConfigReconciler) buildCreatePublicationQuery(
 			withPublicationParameterPart,
 		},
 		" ",
-	)
+	), nil
 }
 
 // alterExistingPublication modifies an existing publication to the desired
@@ -331,15 +340,43 @@ func (r *PostgresConfigReconciler) alterExistingPublication(
 		tableIdentifiers = append(tableIdentifiers, tableIdentifier.Sanitize())
 	}
 
-	query := fmt.Sprintf(
+	setTableQuery := fmt.Sprintf(
 		"ALTER PUBLICATION %s SET TABLE %s",
 		pgx.Identifier{publication.Name}.Sanitize(),
 		strings.Join(tableIdentifiers, ", "),
 	)
 
-	r.Log.Info(fmt.Sprintf("executing query: %s", query))
-	if _, err := conn.Exec(ctx, query); err != nil {
+	r.Log.Info(fmt.Sprintf("executing query: %s", setTableQuery))
+	if _, err := conn.Exec(ctx, setTableQuery); err != nil {
 		return fmt.Errorf("failed to set table to publication: %w", err)
+	}
+
+	var joinedOperations string
+	if len(publication.Operations) > 0 {
+		joinedOperations = strings.Join(publication.Operations, ", ")
+	} else {
+		// Default value as documented here:
+		// https://www.postgresql.org/docs/current/sql-createpublication.html
+		joinedOperations = "insert, update, delete, truncate"
+	}
+
+	sanitizedOperations, err := conn.PgConn().EscapeString(joinedOperations)
+	if err != nil {
+		return fmt.Errorf("failed to escape operations: %w", err)
+	}
+
+	setParamQuery := fmt.Sprintf(
+		"ALTER PUBLICATION %s SET (publish = '%s')",
+		pgx.Identifier{publication.Name}.Sanitize(),
+		sanitizedOperations,
+	)
+
+	r.Log.Info(fmt.Sprintf("executing query: %s", setParamQuery))
+	if _, err := conn.Exec(
+		ctx,
+		setParamQuery,
+	); err != nil {
+		return fmt.Errorf("failed to set publication parameter: %w", err)
 	}
 
 	return nil
