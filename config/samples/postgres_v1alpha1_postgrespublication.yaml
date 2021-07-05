@@ -3,5 +3,14 @@ kind: PostgresPublication
 metadata:
   name: postgrespublication-sample
 spec:
-  # Add fields here
-  foo: bar
+  postgresRef:
+    host: postgres.default
+    port: 5432
+    database: postgres
+    secretRef:
+      secretName: postgres
+  name: test_publication
+  tables:
+  - name: test
+    schema: public
+  operations: []
