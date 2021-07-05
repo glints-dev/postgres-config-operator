@@ -19,20 +19,14 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"strings"
 
 	"github.com/go-logr/logr"
-	"github.com/jackc/pgconn"
-	"github.com/jackc/pgerrcode"
-	"github.com/jackc/pgx/v4"
-	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	postgresv1alpha1 "github.com/glints-dev/postgres-config-operator/api/v1alpha1"
 )
@@ -43,6 +37,11 @@ const (
 	EventTypeSuccessConnectPostgres string = "SuccessConnectPostgres"
 	EventTypeFailedReconcile        string = "FailedReconcile"
 	EventTypeSuccessfulReconcile    string = "SuccessfulReconcile"
+)
+
+var (
+	publicationOwnerKey string = ".metadata.controller"
+	apiGVStr            string = postgresv1alpha1.GroupVersion.String()
 )
 
 // PostgresConfigReconciler reconciles a PostgresConfig object
@@ -57,7 +56,6 @@ type PostgresConfigReconciler struct {
 //+kubebuilder:rbac:groups=postgres.glints.com,resources=postgresconfigs/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=postgres.glints.com,resources=postgresconfigs/finalizers,verbs=update
 //+kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
-//+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -72,330 +70,205 @@ func (r *PostgresConfigReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, fmt.Errorf("failed to get PostgresConfig: %w", err)
 	}
 
-	secretNamespacedName := types.NamespacedName{
-		Name:      postgresConfig.Spec.PostgresRef.SecretRef.SecretName,
-		Namespace: postgresConfig.GetNamespace(),
-	}
-	secretRef := &corev1.Secret{}
-	if err := r.Get(ctx, secretNamespacedName, secretRef); err != nil {
-		r.recorder.Eventf(
-			postgresConfig,
-			corev1.EventTypeWarning,
-			EventTypeMissingSecret,
-			"failed to get Secret: %v",
-			err,
-		)
-		return ctrl.Result{Requeue: true}, nil
-	}
-
-	connURL := url.URL{
-		Scheme: "postgres",
-		User: url.UserPassword(
-			string(secretRef.Data["POSTGRES_USER"]),
-			string(secretRef.Data["POSTGRES_PASSWORD"]),
-		),
-		Host: fmt.Sprintf(
-			"%s:%d",
-			postgresConfig.Spec.PostgresRef.Host,
-			postgresConfig.Spec.PostgresRef.Port,
-		),
-		RawPath: postgresConfig.Spec.PostgresRef.Database,
-	}
-	conn, err := pgx.Connect(ctx, connURL.String())
-	if err != nil {
-		r.recorder.Eventf(
-			postgresConfig,
-			corev1.EventTypeWarning,
-			EventTypeFailedConnectPostgres,
-			"failed to connect to PostgreSQL: %v",
-			err,
-		)
-		return ctrl.Result{Requeue: true}, nil
-	}
-	defer conn.Close(ctx)
-
-	r.recorder.Event(
-		postgresConfig,
-		corev1.EventTypeNormal,
-		EventTypeSuccessConnectPostgres,
-		"successfully connected to PostgreSQL",
-	)
-
-	if err := r.HandleFinalizers(ctx, conn, postgresConfig); err != nil {
-		return ctrl.Result{}, err
-	}
-
-	reconcileResult, err := r.reconcileWithConnAndConfig(ctx, conn, postgresConfig)
-	if err != nil {
-		return reconcileResult, fmt.Errorf("failed to reconcile: %w", err)
-	}
-
-	if reconcileResult.Requeue {
-		return reconcileResult, nil
-	}
-
-	return ctrl.Result{}, nil
-}
-
-// HandleFinalizers implements the logic required to handle deletes.
-func (r *PostgresConfigReconciler) HandleFinalizers(
-	ctx context.Context,
-	conn *pgx.Conn,
-	config *postgresv1alpha1.PostgresConfig,
-) error {
-	const finalizerName = "postgres.glints.com/finalizer"
-
-	if config.ObjectMeta.DeletionTimestamp.IsZero() {
-		// The object is not being deleted.
-		if !containsString(config.GetFinalizers(), finalizerName) {
-			controllerutil.AddFinalizer(config, finalizerName)
-			if err := r.Update(ctx, config); err != nil {
-				return err
-			}
-		}
-	} else {
-		// The object is being deleted.
-		if containsString(config.GetFinalizers(), finalizerName) {
-			if err := r.deleteExternalResources(ctx, conn, config); err != nil {
-				return err
-			}
-
-			controllerutil.RemoveFinalizer(config, finalizerName)
-			if err := r.Update(ctx, config); err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}
-
-func containsString(slice []string, s string) bool {
-	for _, item := range slice {
-		if item == s {
-			return true
-		}
-	}
-	return false
-}
-
-// deleteExternalResources removes all resources associated with the given
-// PostgresConfig. Note that this will also remove resources not originally
-// managed by the operator, so use with care.
-func (r *PostgresConfigReconciler) deleteExternalResources(
-	ctx context.Context,
-	conn *pgx.Conn,
-	config *postgresv1alpha1.PostgresConfig,
-) error {
-	for _, publication := range config.Spec.Publications {
-		query := fmt.Sprintf(
-			"DROP PUBLICATION %s",
-			pgx.Identifier{publication.Name}.Sanitize(),
-		)
-
-		if _, err := conn.Exec(ctx, query); err != nil {
-			return fmt.Errorf("failed to drop publication: %w", err)
-		}
-	}
-
-	return nil
-}
-
-// reconcileWithConnAndConfig performs the reconcillation with the given
-// connection and configuration.
-func (r *PostgresConfigReconciler) reconcileWithConnAndConfig(
-	ctx context.Context,
-	conn *pgx.Conn,
-	config *postgresv1alpha1.PostgresConfig,
-) (ctrl.Result, error) {
-	r.Log.Info("reconcilling publications")
-
-	if err := r.reconcilePublications(
+	var currentPublications postgresv1alpha1.PostgresPublicationList
+	if err := r.List(
 		ctx,
-		conn,
-		config.Spec.Publications,
+		&currentPublications,
+		client.MatchingFields{publicationOwnerKey: req.Name},
 	); err != nil {
-		r.recorder.Eventf(
-			config,
-			corev1.EventTypeWarning,
-			EventTypeFailedReconcile,
-			"failed to reconcile: %v",
-			err,
-		)
-		return ctrl.Result{Requeue: true}, nil
+		return ctrl.Result{}, fmt.Errorf("failed to list owned publications: %w", err)
 	}
 
-	r.Log.Info("publications reconcilled successfully")
-	r.recorder.Event(
-		config,
-		corev1.EventTypeNormal,
-		EventTypeSuccessfulReconcile,
-		"configuration reconcilled successfully",
-	)
+	currentPublicationsByName := make(map[string]postgresv1alpha1.PostgresPublication)
+	for _, publication := range currentPublications.Items {
+		currentPublicationsByName[publication.Spec.Name] = publication
+	}
 
-	config.Status.Configured = true
-	if err := r.Status().Update(ctx, config); err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to update status: %w", err)
+	desiredPublicationsByName := make(map[string]postgresv1alpha1.Publication)
+	for _, publication := range postgresConfig.Spec.Publications {
+		desiredPublicationsByName[publication.Name] = publication
+	}
+
+	// Compare the current and desired list of publications.
+	var publicationsToCreate []postgresv1alpha1.Publication
+	var publicationsToUpdate []postgresv1alpha1.Publication
+	for name, publication := range desiredPublicationsByName {
+		if _, ok := currentPublicationsByName[name]; !ok {
+			publicationsToCreate = append(publicationsToCreate, publication)
+		} else {
+			publicationsToUpdate = append(publicationsToUpdate, publication)
+		}
+	}
+
+	var publicationsToDelete []postgresv1alpha1.PostgresPublication
+	for name, publication := range currentPublicationsByName {
+		if _, ok := desiredPublicationsByName[name]; !ok {
+			publicationsToDelete = append(publicationsToDelete, publication)
+		}
+	}
+
+	if err := r.createPublications(
+		ctx,
+		*postgresConfig,
+		publicationsToCreate,
+		req.Name,
+		req.Namespace,
+		postgresConfig.Spec.PostgresRef,
+	); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to create publication resources: %w", err)
+	}
+
+	if err := r.updatePublications(
+		ctx,
+		*postgresConfig,
+		publicationsToCreate,
+		req.Name,
+		req.Namespace,
+		postgresConfig.Spec.PostgresRef,
+	); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to update publication resources: %w", err)
+	}
+
+	if err := r.deletePublications(
+		ctx,
+		publicationsToDelete,
+		req.Name,
+		req.Namespace,
+	); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to delete publication resources: %w", err)
 	}
 
 	return ctrl.Result{}, nil
 }
 
-// reconcilePublications ensures that publications on the PostgreSQL server are
-// consistent with the given configuration.
-func (r *PostgresConfigReconciler) reconcilePublications(
+func (r *PostgresConfigReconciler) createPublications(
 	ctx context.Context,
-	conn *pgx.Conn,
+	config postgresv1alpha1.PostgresConfig,
 	publications []postgresv1alpha1.Publication,
+	configName string,
+	namespace string,
+	postgresRef postgresv1alpha1.PostgresRef,
 ) error {
 	for _, publication := range publications {
-		if err := r.reconcilePublication(ctx, conn, publication); err != nil {
-			return fmt.Errorf("failed to reconcile publication: %w", err)
-		}
-	}
-
-	return nil
-}
-
-// reconcilePublication ensures that the given publication is reconciled.
-func (r *PostgresConfigReconciler) reconcilePublication(
-	ctx context.Context,
-	conn *pgx.Conn,
-	publication postgresv1alpha1.Publication,
-) error {
-	var err error
-
-	query, err := r.buildCreatePublicationQuery(publication, conn.PgConn())
-	if err != nil {
-		return fmt.Errorf("failed to build create publication query: %w", err)
-	}
-
-	r.Log.Info(fmt.Sprintf("executing query: %s", query))
-	_, err = conn.Exec(ctx, query)
-
-	publicationCreated := true
-	if err != nil {
-		pgErr, ok := err.(*pgconn.PgError)
-		if ok && pgErr.Code == pgerrcode.DuplicateObject {
-			publicationCreated = false
-		} else {
-			return fmt.Errorf("failed to execute query: %w", err)
-		}
-	}
-
-	if !publicationCreated {
-		if err := r.alterExistingPublication(ctx, conn, publication); err != nil {
-			return fmt.Errorf("failed to alter existing publication: %w", err)
-		}
-	}
-
-	return nil
-}
-
-// ReconcilePublication builds the query to create a publication.
-func (r *PostgresConfigReconciler) buildCreatePublicationQuery(
-	publication postgresv1alpha1.Publication,
-	conn *pgconn.PgConn,
-) (string, error) {
-	publicationIdentifer := pgx.Identifier{publication.Name}
-
-	var forTablePart string
-	if len(publication.Tables) == 0 {
-		forTablePart = "FOR ALL TABLES"
-	} else {
-		var tableIdentifiers []string
-		for _, table := range publication.Tables {
-			tableIdentifier := pgx.Identifier{table.Schema, table.Name}
-			tableIdentifiers = append(tableIdentifiers, tableIdentifier.Sanitize())
-		}
-
-		forTablePart = fmt.Sprintf("FOR TABLE %s", strings.Join(tableIdentifiers, ", "))
-	}
-
-	var withPublicationParameterPart string
-	if len(publication.Operations) > 0 {
-		escapedOperations, err := conn.EscapeString(strings.Join(publication.Operations, ", "))
-		if err != nil {
-			return "", fmt.Errorf("failed to escape string: %w", err)
-		}
-
-		withPublicationParameterPart = fmt.Sprintf(
-			"WITH (publish = '%s')",
-			escapedOperations,
+		resource := r.buildPublicationResource(
+			config,
+			publication,
+			configName,
+			namespace,
+			postgresRef,
 		)
-	}
 
-	return strings.Join(
-		[]string{
-			"CREATE PUBLICATION",
-			publicationIdentifer.Sanitize(),
-			forTablePart,
-			withPublicationParameterPart,
-		},
-		" ",
-	), nil
-}
-
-// alterExistingPublication modifies an existing publication to the desired
-// state as described in publication.
-func (r *PostgresConfigReconciler) alterExistingPublication(
-	ctx context.Context,
-	conn *pgx.Conn,
-	publication postgresv1alpha1.Publication,
-) error {
-	var tableIdentifiers []string
-	for _, table := range publication.Tables {
-		tableIdentifier := pgx.Identifier{table.Schema, table.Name}
-		tableIdentifiers = append(tableIdentifiers, tableIdentifier.Sanitize())
-	}
-
-	setTableQuery := fmt.Sprintf(
-		"ALTER PUBLICATION %s SET TABLE %s",
-		pgx.Identifier{publication.Name}.Sanitize(),
-		strings.Join(tableIdentifiers, ", "),
-	)
-
-	r.Log.Info(fmt.Sprintf("executing query: %s", setTableQuery))
-	if _, err := conn.Exec(ctx, setTableQuery); err != nil {
-		return fmt.Errorf("failed to set table to publication: %w", err)
-	}
-
-	var joinedOperations string
-	if len(publication.Operations) > 0 {
-		joinedOperations = strings.Join(publication.Operations, ", ")
-	} else {
-		// Default value as documented here:
-		// https://www.postgresql.org/docs/current/sql-createpublication.html
-		joinedOperations = "insert, update, delete, truncate"
-	}
-
-	sanitizedOperations, err := conn.PgConn().EscapeString(joinedOperations)
-	if err != nil {
-		return fmt.Errorf("failed to escape operations: %w", err)
-	}
-
-	setParamQuery := fmt.Sprintf(
-		"ALTER PUBLICATION %s SET (publish = '%s')",
-		pgx.Identifier{publication.Name}.Sanitize(),
-		sanitizedOperations,
-	)
-
-	r.Log.Info(fmt.Sprintf("executing query: %s", setParamQuery))
-	if _, err := conn.Exec(
-		ctx,
-		setParamQuery,
-	); err != nil {
-		return fmt.Errorf("failed to set publication parameter: %w", err)
+		if err := r.Create(ctx, resource); err != nil {
+			return fmt.Errorf("failed to create publication resource: %w", err)
+		}
 	}
 
 	return nil
+}
+
+func (r *PostgresConfigReconciler) updatePublications(
+	ctx context.Context,
+	config postgresv1alpha1.PostgresConfig,
+	publications []postgresv1alpha1.Publication,
+	configName string,
+	namespace string,
+	postgresRef postgresv1alpha1.PostgresRef,
+) error {
+	for _, publication := range publications {
+		resource := r.buildPublicationResource(
+			config,
+			publication,
+			configName,
+			namespace,
+			postgresRef,
+		)
+
+		if err := r.Update(ctx, resource); err != nil {
+			return fmt.Errorf("failed to update publication resource: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (r *PostgresConfigReconciler) buildPublicationResource(
+	config postgresv1alpha1.PostgresConfig,
+	publication postgresv1alpha1.Publication,
+	configName string,
+	namespace string,
+	postgresRef postgresv1alpha1.PostgresRef,
+) *postgresv1alpha1.PostgresPublication {
+	return &postgresv1alpha1.PostgresPublication{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      r.publicationResourceName(configName, publication),
+			Namespace: namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(config.GetObjectMeta(), config.GroupVersionKind()),
+			},
+		},
+		Spec: postgresv1alpha1.PostgresPublicationSpec{
+			PostgresRef: postgresRef,
+			Name:        publication.Name,
+			Tables:      publication.Tables,
+			Operations:  publication.Operations,
+		},
+	}
+}
+
+func (r *PostgresConfigReconciler) deletePublications(
+	ctx context.Context,
+	publications []postgresv1alpha1.PostgresPublication,
+	configName string,
+	namespace string,
+) error {
+	for _, publication := range publications {
+		if err := r.Delete(ctx, &publication); err != nil {
+			return fmt.Errorf("failed to delete publication resource: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (r *PostgresConfigReconciler) publicationResourceName(
+	configName string,
+	publication postgresv1alpha1.Publication,
+) string {
+	return fmt.Sprintf(
+		"%s-%s",
+		configName,
+		strings.ReplaceAll(publication.Name, "_", "-"),
+	)
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *PostgresConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.recorder = mgr.GetEventRecorderFor("postgres-config-controller")
 
+	// Index the owner of child PostgresPublications to allow for fast lookups.
+	if err := mgr.GetFieldIndexer().IndexField(
+		context.Background(),
+		&postgresv1alpha1.PostgresPublication{},
+		publicationOwnerKey,
+		func(rawObj client.Object) []string {
+			publication := rawObj.(*postgresv1alpha1.PostgresPublication)
+			owner := metav1.GetControllerOf(publication)
+			if owner == nil {
+				return nil
+			}
+
+			if owner.APIVersion != apiGVStr || owner.Kind != "PostgresConfig" {
+				return nil
+			}
+
+			return []string{owner.Name}
+		},
+	); err != nil {
+		return err
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&postgresv1alpha1.PostgresConfig{}).
+		Owns(&postgresv1alpha1.PostgresPublication{}).
 		Complete(r)
 }

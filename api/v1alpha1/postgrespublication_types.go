@@ -22,27 +22,20 @@ import (
 
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// PostgresConfigSpec defines the desired state of PostgresConfig
-type PostgresConfigSpec struct {
+// PostgresPublicationSpec defines the desired state of PostgresPublication
+type PostgresPublicationSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
 	// PostgresRef is a reference to the PostgreSQL server to configure
 	PostgresRef PostgresRef `json:"postgresRef"`
 
-	// Publications is a list of publications to be created
-	Publications []Publication `json:"publications,omitempty"`
-}
-
-// Publication represents a PUBLICATION
-// https://www.postgresql.org/docs/current/sql-createpublication.html
-type Publication struct {
 	// Name is the name of the publication to create
 	Name string `json:"name"`
 
 	// Tables is the list of tables to include in the publication. If the list
 	// is empty or omitted, publication is created for all tables
-	Tables []PostgresTableIdentifier `json:"tables,omitempty"`
+	Tables []PostgresTableIdentifier `json:"tables"`
 
 	// Operations determines which DML operations will be published by the
 	// publication to subscribers. The allowed operations are insert, update,
@@ -51,43 +44,33 @@ type Publication struct {
 	Operations []string `json:"operations,omitempty"`
 }
 
-// PostgresConfigStatus defines the observed state of PostgresConfig
-type PostgresConfigStatus struct {
+// PostgresPublicationStatus defines the observed state of PostgresPublication
+type PostgresPublicationStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-
-	// Configured indicates whether the target PostgreSQL server has been
-	// successfully configured according to spec
-	Configured bool `json:"configured"`
-}
-
-// SecretRef is a reference to a secret that exists in the same namespace.
-type SecretRef struct {
-	// SecretName is the name of the secret.
-	SecretName string `json:"secretName,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// PostgresConfig is the Schema for the postgresconfigs API
-type PostgresConfig struct {
+// PostgresPublication is the Schema for the postgrespublications API
+type PostgresPublication struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   PostgresConfigSpec   `json:"spec,omitempty"`
-	Status PostgresConfigStatus `json:"status,omitempty"`
+	Spec   PostgresPublicationSpec   `json:"spec,omitempty"`
+	Status PostgresPublicationStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// PostgresConfigList contains a list of PostgresConfig
-type PostgresConfigList struct {
+// PostgresPublicationList contains a list of PostgresPublication
+type PostgresPublicationList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []PostgresConfig `json:"items"`
+	Items           []PostgresPublication `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&PostgresConfig{}, &PostgresConfigList{})
+	SchemeBuilder.Register(&PostgresPublication{}, &PostgresPublicationList{})
 }

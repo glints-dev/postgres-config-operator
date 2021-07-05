@@ -85,6 +85,9 @@ var _ = BeforeSuite(func() {
 	err = postgresv1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
+	err = postgresv1alpha1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
 	//+kubebuilder:scaffold:scheme
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
@@ -100,6 +103,13 @@ var _ = BeforeSuite(func() {
 		Client: k8sManager.GetClient(),
 		Scheme: k8sManager.GetScheme(),
 		Log:    ctrl.Log.WithName("controllers").WithName("postgresconfig"),
+	}).SetupWithManager(k8sManager)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = (&PostgresPublicationReconciler{
+		Client: k8sManager.GetClient(),
+		Scheme: k8sManager.GetScheme(),
+		Log:    ctrl.Log.WithName("controllers").WithName("postgrespublication"),
 	}).SetupWithManager(k8sManager)
 	Expect(err).NotTo(HaveOccurred())
 
@@ -229,4 +239,19 @@ func CreatePostgresSecret(ctx context.Context, namespace string) {
 
 	err := k8sClient.Create(ctx, secret)
 	Expect(err).NotTo(HaveOccurred(), "failed to create test Secret resource")
+}
+
+// createBarebonesTable creates a very minimal table with the given name.
+func createBarebonesTable(ctx context.Context, name string) {
+	query := fmt.Sprintf(
+		`CREATE TABLE %s (
+			id UUID NOT NULL DEFAULT gen_random_uuid(),
+			CONSTRAINT %s PRIMARY KEY (id)
+		)`,
+		pgx.Identifier{name}.Sanitize(),
+		pgx.Identifier{fmt.Sprintf("%s_pkey", name)}.Sanitize(),
+	)
+
+	_, err := postgresConn.Exec(ctx, query)
+	Expect(err).NotTo(HaveOccurred(), "failed to create table %s", name)
 }

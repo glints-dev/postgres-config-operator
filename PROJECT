@@ -16,4 +16,13 @@ resources:
   kind: PostgresConfig
   path: github.com/glints-dev/postgres-config-operator/api/v1alpha1
   version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: glints.com
+  group: postgres
+  kind: PostgresPublication
+  path: github.com/glints-dev/postgres-config-operator/api/v1alpha1
+  version: v1alpha1
 version: "3"

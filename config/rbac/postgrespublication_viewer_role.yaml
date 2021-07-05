@@ -1,0 +1,20 @@
+# permissions for end users to view postgrespublications.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: postgrespublication-viewer-role
+rules:
+- apiGroups:
+  - postgres.glints.com
+  resources:
+  - postgrespublications
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - postgres.glints.com
+  resources:
+  - postgrespublications/status
+  verbs:
+  - get

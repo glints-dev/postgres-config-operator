@@ -6,20 +6,21 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.4.1
   creationTimestamp: null
-  name: postgresconfigs.postgres.glints.com
+  name: postgrespublications.postgres.glints.com
 spec:
   group: postgres.glints.com
   names:
-    kind: PostgresConfig
-    listKind: PostgresConfigList
-    plural: postgresconfigs
-    singular: postgresconfig
+    kind: PostgresPublication
+    listKind: PostgresPublicationList
+    plural: postgrespublications
+    singular: postgrespublication
   scope: Namespaced
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: PostgresConfig is the Schema for the postgresconfigs API
+        description: PostgresPublication is the Schema for the postgrespublications
+          API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -34,8 +35,19 @@ spec:
           metadata:
             type: object
           spec:
-            description: PostgresConfigSpec defines the desired state of PostgresConfig
+            description: PostgresPublicationSpec defines the desired state of PostgresPublication
             properties:
+              name:
+                description: Name is the name of the publication to create
+                type: string
+              operations:
+                description: Operations determines which DML operations will be published
+                  by the publication to subscribers. The allowed operations are insert,
+                  update, delete, and truncate. If left empty or omitted, all operations
+                  are published
+                items:
+                  type: string
+                type: array
               postgresRef:
                 description: PostgresRef is a reference to the PostgreSQL server to
                   configure
@@ -61,58 +73,33 @@ spec:
                 required:
                 - secretRef
                 type: object
-              publications:
-                description: Publications is a list of publications to be created
+              tables:
+                description: Tables is the list of tables to include in the publication.
+                  If the list is empty or omitted, publication is created for all
+                  tables
                 items:
-                  description: Publication represents a PUBLICATION https://www.postgresql.org/docs/current/sql-createpublication.html
+                  description: PostgresTableIdentifier represents an identifier for
+                    a table, e.g. a pair of schema and table name.
                   properties:
                     name:
-                      description: Name is the name of the publication to create
+                      description: Name is the name of the table
                       type: string
-                    operations:
-                      description: Operations determines which DML operations will
-                        be published by the publication to subscribers. The allowed
-                        operations are insert, update, delete, and truncate. If left
-                        empty or omitted, all operations are published
-                      items:
-                        type: string
-                      type: array
-                    tables:
-                      description: Tables is the list of tables to include in the
-                        publication. If the list is empty or omitted, publication
-                        is created for all tables
-                      items:
-                        description: PostgresTableIdentifier represents an identifier
-                          for a table, e.g. a pair of schema and table name.
-                        properties:
-                          name:
-                            description: Name is the name of the table
-                            type: string
-                          schema:
-                            description: Schema is the name of the schema the table
-                              resides in
-                            type: string
-                        required:
-                        - name
-                        - schema
-                        type: object
-                      type: array
+                    schema:
+                      description: Schema is the name of the schema the table resides
+                        in
+                      type: string
                   required:
                   - name
+                  - schema
                   type: object
                 type: array
             required:
+            - name
             - postgresRef
+            - tables
             type: object
           status:
-            description: PostgresConfigStatus defines the observed state of PostgresConfig
-            properties:
-              configured:
-                description: Configured indicates whether the target PostgreSQL server
-                  has been successfully configured according to spec
-                type: boolean
-            required:
-            - configured
+            description: PostgresPublicationStatus defines the observed state of PostgresPublication
             type: object
         type: object
     served: true

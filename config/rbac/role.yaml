@@ -47,3 +47,29 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - postgres.glints.com
+  resources:
+  - postgrespublications
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - postgres.glints.com
+  resources:
+  - postgrespublications/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - postgres.glints.com
+  resources:
+  - postgrespublications/status
+  verbs:
+  - get
+  - patch
+  - update
