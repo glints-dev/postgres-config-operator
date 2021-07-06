@@ -97,12 +97,14 @@ func (r *PostgresConfigReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	// Compare the current and desired list of publications.
 	var publicationsToCreate []postgresv1alpha1.Publication
-	var publicationsToUpdate []postgresv1alpha1.Publication
+	var publicationsToUpdateCurrent []postgresv1alpha1.PostgresPublication
+	var publicationsToUpdateDesired []postgresv1alpha1.Publication
 	for name, publication := range desiredPublicationsByName {
 		if _, ok := currentPublicationsByName[name]; !ok {
 			publicationsToCreate = append(publicationsToCreate, publication)
 		} else {
-			publicationsToUpdate = append(publicationsToUpdate, publication)
+			publicationsToUpdateCurrent = append(publicationsToUpdateCurrent, currentPublicationsByName[name])
+			publicationsToUpdateDesired = append(publicationsToUpdateDesired, publication)
 		}
 	}
 
@@ -113,12 +115,15 @@ func (r *PostgresConfigReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		}
 	}
 
+	logger.Info("reconcilation summary",
+		"publicationsToCreate", publicationsToCreate,
+		"publicationsToUpdate", publicationsToUpdateDesired,
+		"publicationsToDelete", publicationsToDelete)
+
 	if err := r.createPublications(
 		ctx,
 		*postgresConfig,
 		publicationsToCreate,
-		req.Name,
-		req.Namespace,
 		postgresConfig.Spec.PostgresRef,
 	); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to create publication resources: %w", err)
@@ -127,9 +132,8 @@ func (r *PostgresConfigReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	if err := r.updatePublications(
 		ctx,
 		*postgresConfig,
-		publicationsToCreate,
-		req.Name,
-		req.Namespace,
+		publicationsToUpdateCurrent,
+		publicationsToUpdateDesired,
 		postgresConfig.Spec.PostgresRef,
 	); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to update publication resources: %w", err)
@@ -151,8 +155,6 @@ func (r *PostgresConfigReconciler) createPublications(
 	ctx context.Context,
 	config postgresv1alpha1.PostgresConfig,
 	publications []postgresv1alpha1.Publication,
-	configName string,
-	namespace string,
 	postgresRef postgresv1alpha1.PostgresRef,
 ) error {
 	for _, publication := range publications {
@@ -161,8 +163,8 @@ func (r *PostgresConfigReconciler) createPublications(
 		resource := r.buildPublicationResource(
 			config,
 			publication,
-			configName,
-			namespace,
+			config.Name,
+			config.Namespace,
 			postgresRef,
 		)
 
@@ -177,22 +179,25 @@ func (r *PostgresConfigReconciler) createPublications(
 func (r *PostgresConfigReconciler) updatePublications(
 	ctx context.Context,
 	config postgresv1alpha1.PostgresConfig,
-	publications []postgresv1alpha1.Publication,
-	configName string,
-	namespace string,
+	publicationsCurrent []postgresv1alpha1.PostgresPublication,
+	publicationsDesired []postgresv1alpha1.Publication,
 	postgresRef postgresv1alpha1.PostgresRef,
 ) error {
+	for idx, publication := range publicationsDesired {
 		utils.RequestLogger(ctx, r.Log).Info("updating publication")
 
 		resource := r.buildPublicationResource(
 			config,
 			publication,
-			configName,
-			namespace,
+			config.Name,
+			config.Namespace,
 			postgresRef,
 		)
 
-		if err := r.Update(ctx, resource); err != nil {
+		desiredPublication := publicationsCurrent[idx].DeepCopy()
+		desiredPublication.Spec = resource.Spec
+
+		if err := r.Update(ctx, desiredPublication); err != nil {
 			return fmt.Errorf("failed to update publication resource: %w", err)
 		}
 	}
