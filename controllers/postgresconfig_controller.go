@@ -30,6 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	postgresv1alpha1 "github.com/glints-dev/postgres-config-operator/api/v1alpha1"
+	"github.com/glints-dev/postgres-config-operator/controllers/utils"
 )
 
 const (
@@ -64,7 +65,8 @@ type PostgresConfigReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.8.3/pkg/reconcile
 func (r *PostgresConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = r.Log.WithValues("postgresconfig", req.NamespacedName)
+	logger := r.Log.WithValues("postgresconfig", req.NamespacedName)
+	ctx = utils.WithRequestLogger(ctx, req, "postgresconfig", r.Log)
 
 	postgresConfig := &postgresv1alpha1.PostgresConfig{}
 	if err := r.Get(ctx, req.NamespacedName, postgresConfig); err != nil {
@@ -154,6 +156,8 @@ func (r *PostgresConfigReconciler) createPublications(
 	postgresRef postgresv1alpha1.PostgresRef,
 ) error {
 	for _, publication := range publications {
+		utils.RequestLogger(ctx, r.Log).Info("creating publication")
+
 		resource := r.buildPublicationResource(
 			config,
 			publication,
@@ -178,7 +182,8 @@ func (r *PostgresConfigReconciler) updatePublications(
 	namespace string,
 	postgresRef postgresv1alpha1.PostgresRef,
 ) error {
-	for _, publication := range publications {
+		utils.RequestLogger(ctx, r.Log).Info("updating publication")
+
 		resource := r.buildPublicationResource(
 			config,
 			publication,
@@ -226,6 +231,8 @@ func (r *PostgresConfigReconciler) deletePublications(
 	namespace string,
 ) error {
 	for _, publication := range publications {
+		utils.RequestLogger(ctx, r.Log).Info("deleting publication")
+
 		if err := r.Delete(ctx, &publication); err != nil {
 			return fmt.Errorf("failed to delete publication resource: %w", err)
 		}

@@ -35,6 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	postgresv1alpha1 "github.com/glints-dev/postgres-config-operator/api/v1alpha1"
+	"github.com/glints-dev/postgres-config-operator/controllers/utils"
 )
 
 // PostgresPublicationReconciler reconciles a PostgresPublication object
@@ -56,7 +57,7 @@ type PostgresPublicationReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.8.3/pkg/reconcile
 func (r *PostgresPublicationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = r.Log.WithValues("postgrespublication", req.NamespacedName)
+	ctx = utils.WithRequestLogger(ctx, req, "postgrespublication", r.Log)
 
 	publication := &postgresv1alpha1.PostgresPublication{}
 	if err := r.Get(ctx, req.NamespacedName, publication); err != nil {
@@ -175,6 +176,7 @@ func (r *PostgresPublicationReconciler) deleteExternalResources(
 		pgx.Identifier{publication.Spec.Name}.Sanitize(),
 	)
 
+	utils.RequestLogger(ctx, r.Log).Info(fmt.Sprintf("executing query: %s", query))
 	if _, err := conn.Exec(ctx, query); err != nil {
 		return fmt.Errorf("failed to drop publication: %w", err)
 	}
@@ -188,7 +190,7 @@ func (r *PostgresPublicationReconciler) reconcile(
 	conn *pgx.Conn,
 	publication *postgresv1alpha1.PostgresPublication,
 ) (ctrl.Result, error) {
-	r.Log.Info("reconcilling publication")
+	r.Log.Info("reconcilling publication", "publication.Name", publication.Name)
 	var err error
 
 	query, err := r.buildCreatePublicationQuery(publication, conn.PgConn())
@@ -203,7 +205,7 @@ func (r *PostgresPublicationReconciler) reconcile(
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	r.Log.Info(fmt.Sprintf("executing query: %s", query))
+	utils.RequestLogger(ctx, r.Log).Info(fmt.Sprintf("executing query: %s", query))
 	_, err = conn.Exec(ctx, query)
 
 	publicationCreated := true
@@ -302,7 +304,7 @@ func (r *PostgresPublicationReconciler) alterExistingPublication(
 		strings.Join(tableIdentifiers, ", "),
 	)
 
-	r.Log.Info(fmt.Sprintf("executing query: %s", setTableQuery))
+	utils.RequestLogger(ctx, r.Log).Info(fmt.Sprintf("executing query: %s", setTableQuery))
 	if _, err := conn.Exec(ctx, setTableQuery); err != nil {
 		return fmt.Errorf("failed to set table to publication: %w", err)
 	}
@@ -327,7 +329,7 @@ func (r *PostgresPublicationReconciler) alterExistingPublication(
 		sanitizedOperations,
 	)
 
-	r.Log.Info(fmt.Sprintf("executing query: %s", setParamQuery))
+	utils.RequestLogger(ctx, r.Log).Info(fmt.Sprintf("executing query: %s", setParamQuery))
 	if _, err := conn.Exec(
 		ctx,
 		setParamQuery,
