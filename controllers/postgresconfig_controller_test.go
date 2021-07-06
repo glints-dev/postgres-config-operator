@@ -8,6 +8,7 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	postgresv1alpha1 "github.com/glints-dev/postgres-config-operator/api/v1alpha1"
 )
@@ -56,6 +57,7 @@ var _ = Context("Inside of a new Postgres instance", func() {
 				err := k8sClient.List(
 					ctx,
 					&publications,
+					client.InNamespace(namespace.Name),
 				)
 				Expect(err).NotTo(HaveOccurred())
 
@@ -79,6 +81,7 @@ var _ = Context("Inside of a new Postgres instance", func() {
 				err := k8sClient.List(
 					ctx,
 					&publications,
+					client.InNamespace(namespace.Name),
 				)
 				Expect(err).NotTo(HaveOccurred())
 
@@ -130,6 +133,7 @@ func createConfigForPublications(
 		err := k8sClient.List(
 			ctx,
 			&publications,
+			client.InNamespace(namespace.Name),
 		)
 		Expect(err).NotTo(HaveOccurred())
 
