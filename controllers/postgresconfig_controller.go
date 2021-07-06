@@ -68,7 +68,7 @@ func (r *PostgresConfigReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	postgresConfig := &postgresv1alpha1.PostgresConfig{}
 	if err := r.Get(ctx, req.NamespacedName, postgresConfig); err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to get PostgresConfig: %w", err)
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
 	var currentPublications postgresv1alpha1.PostgresPublicationList

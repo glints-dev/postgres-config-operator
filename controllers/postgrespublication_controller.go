@@ -60,7 +60,7 @@ func (r *PostgresPublicationReconciler) Reconcile(ctx context.Context, req ctrl.
 
 	publication := &postgresv1alpha1.PostgresPublication{}
 	if err := r.Get(ctx, req.NamespacedName, publication); err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to get PostgresPublication: %w", err)
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
 	secretNamespacedName := types.NamespacedName{
