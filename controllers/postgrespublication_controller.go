@@ -20,11 +20,8 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"strings"
 
 	"github.com/go-logr/logr"
-	"github.com/jackc/pgconn"
-	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v4"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -35,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	postgresv1alpha1 "github.com/glints-dev/postgres-config-operator/api/v1alpha1"
+	"github.com/glints-dev/postgres-config-operator/controllers/publicationmanager"
 	"github.com/glints-dev/postgres-config-operator/controllers/utils"
 )
 
@@ -106,6 +104,8 @@ func (r *PostgresPublicationReconciler) Reconcile(ctx context.Context, req ctrl.
 	}
 	defer conn.Close(ctx)
 
+	publicationManager := &publicationmanager.StdManager{Conn: conn}
+
 	r.recorder.Event(
 		publication,
 		corev1.EventTypeNormal,
@@ -113,11 +113,15 @@ func (r *PostgresPublicationReconciler) Reconcile(ctx context.Context, req ctrl.
 		"successfully connected to PostgreSQL",
 	)
 
-	if stopReconcilation, err := r.handleFinalizers(ctx, conn, publication); err != nil || stopReconcilation {
+	if stopReconcilation, err := r.handleFinalizers(
+		ctx,
+		publicationManager,
+		publication,
+	); err != nil || stopReconcilation {
 		return ctrl.Result{}, err
 	}
 
-	reconcileResult, err := r.reconcile(ctx, conn, publication)
+	reconcileResult, err := r.reconcile(ctx, publicationManager, publication)
 	if err != nil {
 		return reconcileResult, fmt.Errorf("failed to reconcile: %w", err)
 	}
@@ -132,7 +136,7 @@ func (r *PostgresPublicationReconciler) Reconcile(ctx context.Context, req ctrl.
 // handleFinalizers implements the logic required to handle deletes.
 func (r *PostgresPublicationReconciler) handleFinalizers(
 	ctx context.Context,
-	conn *pgx.Conn,
+	manager publicationmanager.Manager,
 	publication *postgresv1alpha1.PostgresPublication,
 ) (stopReconcilation bool, err error) {
 	const finalizerName = "postgres.glints.com/finalizer"
@@ -148,7 +152,7 @@ func (r *PostgresPublicationReconciler) handleFinalizers(
 	} else {
 		// The object is being deleted.
 		if containsString(publication.GetFinalizers(), finalizerName) {
-			if err := r.deleteExternalResources(ctx, conn, publication); err != nil {
+			if err := r.deleteExternalResources(ctx, manager, publication); err != nil {
 				return false, err
 			}
 
@@ -168,16 +172,12 @@ func (r *PostgresPublicationReconciler) handleFinalizers(
 // PostgresPublication.
 func (r *PostgresPublicationReconciler) deleteExternalResources(
 	ctx context.Context,
-	conn *pgx.Conn,
+	manager publicationmanager.Manager,
 	publication *postgresv1alpha1.PostgresPublication,
 ) error {
-	query := fmt.Sprintf(
-		"DROP PUBLICATION %s",
-		pgx.Identifier{publication.Spec.Name}.Sanitize(),
-	)
+	utils.RequestLogger(ctx, r.Log).Info("dropping publication", "name", publication.Spec.Name)
 
-	utils.RequestLogger(ctx, r.Log).Info(fmt.Sprintf("executing query: %s", query))
-	if _, err := conn.Exec(ctx, query); err != nil {
+	if err := manager.DropPublication(ctx, publication.Spec.Name); err != nil {
 		return fmt.Errorf("failed to drop publication: %w", err)
 	}
 
@@ -187,46 +187,26 @@ func (r *PostgresPublicationReconciler) deleteExternalResources(
 // reconcile performs the reconcillation with the given connection.
 func (r *PostgresPublicationReconciler) reconcile(
 	ctx context.Context,
-	conn *pgx.Conn,
+	manager publicationmanager.Manager,
 	publication *postgresv1alpha1.PostgresPublication,
 ) (ctrl.Result, error) {
 	r.Log.Info("reconcilling publication", "publication.Name", publication.Name)
 	var err error
 
-	query, err := r.buildCreatePublicationQuery(publication, conn.PgConn())
+	created, err := manager.CreatePublication(ctx, publication)
 	if err != nil {
 		r.recorder.Eventf(
 			publication,
 			corev1.EventTypeWarning,
 			EventTypeFailedReconcile,
-			"failed to build create publication query: %v",
+			"failed to create publication: %v",
 			err,
 		)
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	utils.RequestLogger(ctx, r.Log).Info(fmt.Sprintf("executing query: %s", query))
-	_, err = conn.Exec(ctx, query)
-
-	publicationCreated := true
-	if err != nil {
-		pgErr, ok := err.(*pgconn.PgError)
-		if ok && pgErr.Code == pgerrcode.DuplicateObject {
-			publicationCreated = false
-		} else {
-			r.recorder.Eventf(
-				publication,
-				corev1.EventTypeWarning,
-				EventTypeFailedReconcile,
-				"failed to execute query: %v",
-				err,
-			)
-			return ctrl.Result{Requeue: true}, nil
-		}
-	}
-
-	if !publicationCreated {
-		if err := r.alterExistingPublication(ctx, conn, publication); err != nil {
+	if !created {
+		if err := manager.AlterExistingPublication(ctx, publication); err != nil {
 			r.recorder.Eventf(
 				publication,
 				corev1.EventTypeWarning,
@@ -239,105 +219,6 @@ func (r *PostgresPublicationReconciler) reconcile(
 	}
 
 	return ctrl.Result{}, nil
-}
-
-// ReconcilePublication builds the query to create a publication.
-func (r *PostgresPublicationReconciler) buildCreatePublicationQuery(
-	publication *postgresv1alpha1.PostgresPublication,
-	conn *pgconn.PgConn,
-) (string, error) {
-	publicationIdentifer := pgx.Identifier{publication.Spec.Name}
-
-	var forTablePart string
-	if len(publication.Spec.Tables) == 0 {
-		forTablePart = "FOR ALL TABLES"
-	} else {
-		var tableIdentifiers []string
-		for _, table := range publication.Spec.Tables {
-			tableIdentifier := pgx.Identifier{table.Schema, table.Name}
-			tableIdentifiers = append(tableIdentifiers, tableIdentifier.Sanitize())
-		}
-
-		forTablePart = fmt.Sprintf("FOR TABLE %s", strings.Join(tableIdentifiers, ", "))
-	}
-
-	var withPublicationParameterPart string
-	if len(publication.Spec.Operations) > 0 {
-		escapedOperations, err := conn.EscapeString(strings.Join(publication.Spec.Operations, ", "))
-		if err != nil {
-			return "", fmt.Errorf("failed to escape string: %w", err)
-		}
-
-		withPublicationParameterPart = fmt.Sprintf(
-			"WITH (publish = '%s')",
-			escapedOperations,
-		)
-	}
-
-	return strings.Join(
-		[]string{
-			"CREATE PUBLICATION",
-			publicationIdentifer.Sanitize(),
-			forTablePart,
-			withPublicationParameterPart,
-		},
-		" ",
-	), nil
-}
-
-// alterExistingPublication modifies an existing publication to the desired
-// state as described in publication.
-func (r *PostgresPublicationReconciler) alterExistingPublication(
-	ctx context.Context,
-	conn *pgx.Conn,
-	publication *postgresv1alpha1.PostgresPublication,
-) error {
-	var tableIdentifiers []string
-	for _, table := range publication.Spec.Tables {
-		tableIdentifier := pgx.Identifier{table.Schema, table.Name}
-		tableIdentifiers = append(tableIdentifiers, tableIdentifier.Sanitize())
-	}
-
-	setTableQuery := fmt.Sprintf(
-		"ALTER PUBLICATION %s SET TABLE %s",
-		pgx.Identifier{publication.Spec.Name}.Sanitize(),
-		strings.Join(tableIdentifiers, ", "),
-	)
-
-	utils.RequestLogger(ctx, r.Log).Info(fmt.Sprintf("executing query: %s", setTableQuery))
-	if _, err := conn.Exec(ctx, setTableQuery); err != nil {
-		return fmt.Errorf("failed to set table to publication: %w", err)
-	}
-
-	var joinedOperations string
-	if len(publication.Spec.Operations) > 0 {
-		joinedOperations = strings.Join(publication.Spec.Operations, ", ")
-	} else {
-		// Default value as documented here:
-		// https://www.postgresql.org/docs/current/sql-createpublication.html
-		joinedOperations = "insert, update, delete, truncate"
-	}
-
-	sanitizedOperations, err := conn.PgConn().EscapeString(joinedOperations)
-	if err != nil {
-		return fmt.Errorf("failed to escape operations: %w", err)
-	}
-
-	setParamQuery := fmt.Sprintf(
-		"ALTER PUBLICATION %s SET (publish = '%s')",
-		pgx.Identifier{publication.Spec.Name}.Sanitize(),
-		sanitizedOperations,
-	)
-
-	utils.RequestLogger(ctx, r.Log).Info(fmt.Sprintf("executing query: %s", setParamQuery))
-	if _, err := conn.Exec(
-		ctx,
-		setParamQuery,
-	); err != nil {
-		return fmt.Errorf("failed to set publication parameter: %w", err)
-	}
-
-	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
