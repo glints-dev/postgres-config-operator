@@ -23,6 +23,7 @@ import (
 
 	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -74,7 +75,10 @@ func (r *PostgresConfigReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	if err := r.List(
 		ctx,
 		&currentPublications,
-		client.MatchingFields{publicationOwnerKey: req.Name},
+		&client.ListOptions{
+			FieldSelector: fields.SelectorFromSet(fields.Set{publicationOwnerKey: req.Name}),
+			Namespace:     req.Namespace,
+		},
 	); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to list owned publications: %w", err)
 	}
