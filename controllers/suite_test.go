@@ -30,9 +30,12 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -47,7 +50,6 @@ import (
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 
-var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
 
@@ -199,8 +201,86 @@ func CreateTestNamespace(ctx context.Context) *corev1.Namespace {
 
 // DeleteNamespace deletes the given namespace.
 func DeleteNamespace(ctx context.Context, ns *corev1.Namespace) {
-	err := k8sClient.Delete(ctx, ns)
+	// Use the Kubernetes Discovery API to look up all namespaced resources. The
+	// standard Kubernetes client is used instead of the controller-runtime one
+	// because the latter doesn't support the Discovery API.
+	stdK8sClient, err := kubernetes.NewForConfig(testEnv.Config)
 	Expect(err).NotTo(HaveOccurred())
+
+	_, apiResources, err := stdK8sClient.Discovery().ServerGroupsAndResources()
+	Expect(err).NotTo(HaveOccurred())
+
+	// Get all namespaced GroupVersionKinds.
+	namespacedGVKs := make(map[string]schema.GroupVersionKind)
+	for _, apiResourceList := range apiResources {
+		groupVersion, err := schema.ParseGroupVersion(apiResourceList.GroupVersion)
+		Expect(err).NotTo(HaveOccurred())
+
+		for _, resource := range apiResourceList.APIResources {
+			if !resource.Namespaced || strings.Contains(resource.Name, "/") {
+				continue
+			}
+
+			gvk := schema.GroupVersionKind{
+				Group:   groupVersion.Group,
+				Version: groupVersion.Version,
+				Kind:    resource.Kind,
+			}
+
+			if resource.Group != "" {
+				gvk.Group = resource.Group
+			}
+
+			if resource.Version != "" {
+				gvk.Version = resource.Version
+			}
+
+			namespacedGVKs[gvk.String()] = gvk
+		}
+	}
+
+	// Delete all namespaced resources.
+	for _, gvk := range namespacedGVKs {
+		var u unstructured.Unstructured
+		u.SetGroupVersionKind(gvk)
+
+		err := k8sClient.DeleteAllOf(ctx, &u, client.InNamespace(ns.Name))
+		Expect(client.IgnoreNotFound(ignoreMethodNotAllowed(err))).ShouldNot(HaveOccurred())
+	}
+
+	// Remove the namespace finalizer.
+	Eventually(func() error {
+		key := client.ObjectKeyFromObject(ns)
+
+		if err := k8sClient.Get(ctx, key, ns); err != nil {
+			return client.IgnoreNotFound(err)
+		}
+
+		finalizers := []corev1.FinalizerName{}
+		for _, finalizer := range ns.Spec.Finalizers {
+			if finalizer != "kubernetes" {
+				finalizers = append(finalizers, finalizer)
+			}
+		}
+
+		ns.Spec.Finalizers = finalizers
+
+		_, err = stdK8sClient.CoreV1().Namespaces().Finalize(ctx, ns, metav1.UpdateOptions{})
+		return err
+	}).Should(Succeed())
+
+	// Finally delete the namespace.
+	err = k8sClient.Delete(ctx, ns)
+	Expect(err).NotTo(HaveOccurred())
+}
+
+func ignoreMethodNotAllowed(err error) error {
+	if err != nil {
+		if apierrors.ReasonForError(err) == metav1.StatusReasonMethodNotAllowed {
+			return nil
+		}
+	}
+	return err
 }
 
 // PostgresContainerRef returns a reference to the test Postgres container,
