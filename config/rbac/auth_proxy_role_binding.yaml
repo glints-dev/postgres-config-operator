@@ -8,5 +8,5 @@ roleRef:
   name: proxy-role
 subjects:
 - kind: ServiceAccount
-  name: controller-manager
-  namespace: system
+  name: postgres-config-operator
+  namespace: postgres-config-system

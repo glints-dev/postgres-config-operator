@@ -9,6 +9,6 @@ spec:
     webhook:
       clientConfig:
         service:
-          namespace: system
+          namespace: postgres-config-system
           name: webhook-service
           path: /convert
