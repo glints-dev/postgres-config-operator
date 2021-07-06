@@ -70,6 +70,10 @@ spec:
                         description: SecretName is the name of the secret.
                         type: string
                     type: object
+                  variant:
+                    description: 'Variant is for specific database-as-a-service providers.
+                      Valid values are: aiven, standard. The default value is "standard"'
+                    type: string
                 required:
                 - secretRef
                 type: object

@@ -36,6 +36,15 @@ import (
 	"github.com/glints-dev/postgres-config-operator/controllers/utils"
 )
 
+const (
+	EventTypeInvalidVariant string = "InvalidVariant"
+)
+
+const (
+	VariantStandard string = "standard"
+	VariantAiven    string = "aiven"
+)
+
 // PostgresPublicationReconciler reconciles a PostgresPublication object
 type PostgresPublicationReconciler struct {
 	client.Client
@@ -104,7 +113,17 @@ func (r *PostgresPublicationReconciler) Reconcile(ctx context.Context, req ctrl.
 	}
 	defer conn.Close(ctx)
 
-	publicationManager := &publicationmanager.StdManager{Conn: conn}
+	publicationManager, err := r.publicationManager(publication, conn)
+	if err != nil {
+		r.recorder.Eventf(
+			publication,
+			corev1.EventTypeWarning,
+			EventTypeInvalidVariant,
+			"invalid variant configured: %v",
+			err,
+		)
+		return ctrl.Result{Requeue: true}, nil
+	}
 
 	r.recorder.Event(
 		publication,
@@ -131,6 +150,24 @@ func (r *PostgresPublicationReconciler) Reconcile(ctx context.Context, req ctrl.
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *PostgresPublicationReconciler) publicationManager(
+	publication *postgresv1alpha1.PostgresPublication,
+	conn *pgx.Conn,
+) (publicationmanager.Manager, error) {
+	switch publication.Spec.PostgresRef.Variant {
+	case VariantStandard:
+		fallthrough
+	case "":
+		return &publicationmanager.StdManager{Conn: conn}, nil
+	case VariantAiven:
+		return &publicationmanager.AivenManager{
+			StdManager: publicationmanager.StdManager{Conn: conn},
+		}, nil
+	}
+
+	return nil, fmt.Errorf("unrecognized publication manager \"%s\"", publication.Spec.PostgresRef.Variant)
 }
 
 // handleFinalizers implements the logic required to handle deletes.

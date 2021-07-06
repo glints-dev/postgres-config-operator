@@ -15,7 +15,13 @@ import (
 // CREATE/ALTER/DROP PUBLICATION commands to manipulate publications on a
 // PostgreSQL server.
 type StdManager struct {
-	Conn *pgx.Conn
+	Conn conn
+}
+
+// conn interface allows us to mock pgx.
+type conn interface {
+	Exec(ctx context.Context, sql string, arguments ...interface{}) (pgconn.CommandTag, error)
+	PgConn() *pgconn.PgConn
 }
 
 func (m *StdManager) CreatePublication(
@@ -111,9 +117,7 @@ func (m *StdManager) AlterExistingPublication(
 	if len(publication.Spec.Operations) > 0 {
 		joinedOperations = strings.Join(publication.Spec.Operations, ", ")
 	} else {
-		// Default value as documented here:
-		// https://www.postgresql.org/docs/current/sql-createpublication.html
-		joinedOperations = "insert, update, delete, truncate"
+		joinedOperations = defaultPublishOperations
 	}
 
 	sanitizedOperations, err := conn.PgConn().EscapeString(joinedOperations)

@@ -6,6 +6,11 @@ import (
 	postgresv1alpha1 "github.com/glints-dev/postgres-config-operator/api/v1alpha1"
 )
 
+// defaultPublishOperations is the default value of the "publish" parameter for
+// convenience of the actual manager implementations. It's documented here:
+// https://www.postgresql.org/docs/current/sql-createpublication.html
+const defaultPublishOperations = "insert, update, delete, truncate"
+
 // Manager represents something that is able to manage publications on a
 // PostgreSQL server. This interface is created to cater for the different ways
 // to manage PostgreSQL publications depending on the specific

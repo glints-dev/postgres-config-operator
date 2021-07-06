@@ -30,6 +30,10 @@ type PostgresRef struct {
 	// SecretRef is a reference to a secret in the same namespace that contains
 	// credentials to authenticate against the PostgreSQL server
 	SecretRef SecretRef `json:"secretRef"`
+
+	// Variant is for specific database-as-a-service providers. Valid values
+	// are: aiven, standard. The default value is "standard"
+	Variant string `json:"variant,omitempty"`
 }
 
 // PostgresTableIdentifier represents an identifier for a table, e.g. a pair
