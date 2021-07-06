@@ -112,7 +112,7 @@ func (r *PostgresPublicationReconciler) Reconcile(ctx context.Context, req ctrl.
 		"successfully connected to PostgreSQL",
 	)
 
-	if err := r.handleFinalizers(ctx, conn, publication); err != nil {
+	if stopReconcilation, err := r.handleFinalizers(ctx, conn, publication); err != nil || stopReconcilation {
 		return ctrl.Result{}, err
 	}
 
@@ -133,7 +133,7 @@ func (r *PostgresPublicationReconciler) handleFinalizers(
 	ctx context.Context,
 	conn *pgx.Conn,
 	publication *postgresv1alpha1.PostgresPublication,
-) error {
+) (stopReconcilation bool, err error) {
 	const finalizerName = "postgres.glints.com/finalizer"
 
 	if publication.ObjectMeta.DeletionTimestamp.IsZero() {
@@ -141,24 +141,26 @@ func (r *PostgresPublicationReconciler) handleFinalizers(
 		if !containsString(publication.GetFinalizers(), finalizerName) {
 			controllerutil.AddFinalizer(publication, finalizerName)
 			if err := r.Update(ctx, publication); err != nil {
-				return err
+				return false, err
 			}
 		}
 	} else {
 		// The object is being deleted.
 		if containsString(publication.GetFinalizers(), finalizerName) {
 			if err := r.deleteExternalResources(ctx, conn, publication); err != nil {
-				return err
+				return false, err
 			}
 
 			controllerutil.RemoveFinalizer(publication, finalizerName)
 			if err := r.Update(ctx, publication); err != nil {
-				return err
+				return false, err
 			}
 		}
+
+		return true, nil
 	}
 
-	return nil
+	return false, nil
 }
 
 // deleteExternalResources removes all resources associated with the given
