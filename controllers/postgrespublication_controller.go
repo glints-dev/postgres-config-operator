@@ -19,13 +19,11 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"net/url"
 
 	"github.com/go-logr/logr"
 	"github.com/jackc/pgx/v4"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -71,43 +69,19 @@ func (r *PostgresPublicationReconciler) Reconcile(ctx context.Context, req ctrl.
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	secretNamespacedName := types.NamespacedName{
-		Name:      publication.Spec.PostgresRef.SecretRef.SecretName,
-		Namespace: publication.GetNamespace(),
-	}
-	secretRef := &corev1.Secret{}
-	if err := r.Get(ctx, secretNamespacedName, secretRef); err != nil {
-		r.recorder.Eventf(
-			publication,
-			corev1.EventTypeWarning,
-			EventTypeMissingSecret,
-			"failed to get Secret: %v",
-			err,
-		)
-		return ctrl.Result{Requeue: true}, nil
-	}
-
-	connURL := url.URL{
-		Scheme: "postgres",
-		User: url.UserPassword(
-			string(secretRef.Data["POSTGRES_USER"]),
-			string(secretRef.Data["POSTGRES_PASSWORD"]),
-		),
-		Host: fmt.Sprintf(
-			"%s:%d",
-			publication.Spec.PostgresRef.Host,
-			publication.Spec.PostgresRef.Port,
-		),
-		RawPath: publication.Spec.PostgresRef.Database,
-	}
-	conn, err := pgx.Connect(ctx, connURL.String())
+	conn, err := utils.SetupPostgresConnection(
+		ctx,
+		r,
+		r.recorder,
+		publication.Spec.PostgresRef,
+		publication.ObjectMeta,
+	)
 	if err != nil {
 		r.recorder.Eventf(
 			publication,
 			corev1.EventTypeWarning,
-			EventTypeFailedConnectPostgres,
-			"failed to connect to PostgreSQL: %v",
-			err,
+			EventTypeFailedSetupPostgresConnection,
+			err.Error(),
 		)
 		return ctrl.Result{Requeue: true}, nil
 	}
@@ -148,6 +122,13 @@ func (r *PostgresPublicationReconciler) Reconcile(ctx context.Context, req ctrl.
 	if reconcileResult.Requeue {
 		return reconcileResult, nil
 	}
+
+	r.recorder.Event(
+		publication,
+		corev1.EventTypeNormal,
+		EventTypeSuccessfulReconcile,
+		"successfully reconcilled publication",
+	)
 
 	return ctrl.Result{}, nil
 }

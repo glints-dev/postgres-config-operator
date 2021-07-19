@@ -34,11 +34,10 @@ import (
 )
 
 const (
-	EventTypeMissingSecret          string = "MissingSecret"
-	EventTypeFailedConnectPostgres  string = "FailedConnectPostgres"
-	EventTypeSuccessConnectPostgres string = "SuccessConnectPostgres"
-	EventTypeFailedReconcile        string = "FailedReconcile"
-	EventTypeSuccessfulReconcile    string = "SuccessfulReconcile"
+	EventTypeFailedSetupPostgresConnection string = "FailedSetupPostgresConnection"
+	EventTypeSuccessConnectPostgres        string = "SuccessConnectPostgres"
+	EventTypeFailedReconcile               string = "FailedReconcile"
+	EventTypeSuccessfulReconcile           string = "SuccessfulReconcile"
 )
 
 var (
