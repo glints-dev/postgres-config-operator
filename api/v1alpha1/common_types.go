@@ -36,9 +36,9 @@ type PostgresRef struct {
 	Variant string `json:"variant,omitempty"`
 }
 
-// PostgresTableIdentifier represents an identifier for a table, e.g. a pair
-// of schema and table name.
-type PostgresTableIdentifier struct {
+// PostgresIdentifier represents an identifier for a table, e.g. a pair of
+// schema and table name.
+type PostgresIdentifier struct {
 	// Name is the name of the table
 	Name string `json:"name"`
 

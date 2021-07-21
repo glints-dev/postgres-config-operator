@@ -35,7 +35,7 @@ type PostgresPublicationSpec struct {
 
 	// Tables is the list of tables to include in the publication. If the list
 	// is empty or omitted, publication is created for all tables
-	Tables []PostgresTableIdentifier `json:"tables"`
+	Tables []PostgresIdentifier `json:"tables"`
 
 	// Operations determines which DML operations will be published by the
 	// publication to subscribers. The allowed operations are insert, update,

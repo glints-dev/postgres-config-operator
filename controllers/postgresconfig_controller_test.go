@@ -115,7 +115,7 @@ func createConfigForPublications(
 			Publications: []postgresv1alpha1.Publication{
 				{
 					Name: publicationName,
-					Tables: []postgresv1alpha1.PostgresTableIdentifier{
+					Tables: []postgresv1alpha1.PostgresIdentifier{
 						{Name: tableName, Schema: "public"},
 					},
 				},

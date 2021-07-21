@@ -41,7 +41,7 @@ var _ = Context("Inside of a new Postgres instance", func() {
 				Spec: postgresv1alpha1.PostgresPublicationSpec{
 					PostgresRef: PostgresContainerRef(ctx),
 					Name:        publicationName,
-					Tables: []postgresv1alpha1.PostgresTableIdentifier{
+					Tables: []postgresv1alpha1.PostgresIdentifier{
 						{
 							Name:   "jobs",
 							Schema: "public",
@@ -68,7 +68,7 @@ var _ = Context("Inside of a new Postgres instance", func() {
 				Spec: postgresv1alpha1.PostgresPublicationSpec{
 					PostgresRef: PostgresContainerRef(ctx),
 					Name:        publicationName,
-					Tables: []postgresv1alpha1.PostgresTableIdentifier{
+					Tables: []postgresv1alpha1.PostgresIdentifier{
 						{
 							Name:   "jobs",
 							Schema: "public",
@@ -113,7 +113,7 @@ var _ = Context("Inside of a new Postgres instance", func() {
 				Spec: postgresv1alpha1.PostgresPublicationSpec{
 					PostgresRef: PostgresContainerRef(ctx),
 					Name:        publicationName,
-					Tables: []postgresv1alpha1.PostgresTableIdentifier{
+					Tables: []postgresv1alpha1.PostgresIdentifier{
 						{
 							Name:   "jobs",
 							Schema: "public",
@@ -136,7 +136,7 @@ var _ = Context("Inside of a new Postgres instance", func() {
 
 				publication.Spec.Tables = append(
 					publication.Spec.Tables,
-					postgresv1alpha1.PostgresTableIdentifier{
+					postgresv1alpha1.PostgresIdentifier{
 						Name:   "users",
 						Schema: "public",
 					},
@@ -177,7 +177,7 @@ var _ = Context("Inside of a new Postgres instance", func() {
 				Spec: postgresv1alpha1.PostgresPublicationSpec{
 					PostgresRef: PostgresContainerRef(ctx),
 					Name:        publicationName,
-					Tables: []postgresv1alpha1.PostgresTableIdentifier{
+					Tables: []postgresv1alpha1.PostgresIdentifier{
 						{
 							Name:   "jobs",
 							Schema: "public",
@@ -202,7 +202,7 @@ var _ = Context("Inside of a new Postgres instance", func() {
 				}, publication)
 				Expect(err).NotTo(HaveOccurred(), "failed to get latest PostgresPublication resource")
 
-				publication.Spec.Tables = []postgresv1alpha1.PostgresTableIdentifier{
+				publication.Spec.Tables = []postgresv1alpha1.PostgresIdentifier{
 					publication.Spec.Tables[0],
 				}
 
@@ -240,7 +240,7 @@ var _ = Context("Inside of a new Postgres instance", func() {
 				Spec: postgresv1alpha1.PostgresPublicationSpec{
 					PostgresRef: PostgresContainerRef(ctx),
 					Name:        publicationName,
-					Tables: []postgresv1alpha1.PostgresTableIdentifier{
+					Tables: []postgresv1alpha1.PostgresIdentifier{
 						{
 							Name:   "jobs",
 							Schema: "public",
@@ -294,7 +294,7 @@ var _ = Context("Inside of a new Postgres instance", func() {
 				Spec: postgresv1alpha1.PostgresPublicationSpec{
 					PostgresRef: PostgresContainerRef(ctx),
 					Name:        publicationName,
-					Tables: []postgresv1alpha1.PostgresTableIdentifier{
+					Tables: []postgresv1alpha1.PostgresIdentifier{
 						{
 							Name:   "jobs",
 							Schema: "public",
