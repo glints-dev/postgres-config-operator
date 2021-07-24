@@ -1,0 +1,22 @@
+apiVersion: postgres.glints.com/v1alpha1
+kind: PostgresGrant
+metadata:
+  name: postgresgrant-sample
+spec:
+  postgresRef:
+    host: postgres.default
+    port: 5432
+    database: postgres
+    secretRef:
+      secretName: postgres
+  role: test_role
+  tables: []
+  tablePrivileges: []
+  sequences: []
+  sequencePrivileges: []
+  databases: []
+  databasePrivileges: []
+  schemas: []
+  schemaPrivileges: []
+  functions: []
+  functionPrivileges: []

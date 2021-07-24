@@ -1,0 +1,186 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.4.1
+  creationTimestamp: null
+  name: postgresgrants.postgres.glints.com
+spec:
+  group: postgres.glints.com
+  names:
+    kind: PostgresGrant
+    listKind: PostgresGrantList
+    plural: postgresgrants
+    singular: postgresgrant
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: PostgresGrant is the Schema for the postgresgrants API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: PostgresGrantSpec defines the desired state of PostgresGrant
+            properties:
+              databasePrivileges:
+                description: 'DatabasePrivileges is the list of privileges to grant
+                  Must be one of: CREATE, CONNECT, TEMPORARY, TEMP, ALL'
+                items:
+                  type: string
+                type: array
+              databases:
+                description: Databases is the list of databases to grant privileges
+                  for
+                items:
+                  type: string
+                type: array
+              functionPrivileges:
+                description: 'FunctionPrivileges is the list of privileges to grant
+                  Must be one of: EXECUTE, ALL'
+                items:
+                  type: string
+                type: array
+              functions:
+                description: Functions  is the list of functions to grant privileges
+                  for
+                items:
+                  description: PostgresIdentifier represents an identifier for a table,
+                    e.g. a pair of schema and table name.
+                  properties:
+                    name:
+                      description: Name is the name of the table
+                      type: string
+                    schema:
+                      description: Schema is the name of the schema the table resides
+                        in
+                      type: string
+                  required:
+                  - name
+                  - schema
+                  type: object
+                type: array
+              postgresRef:
+                description: PostgresRef is a reference to the PostgreSQL server to
+                  configure
+                properties:
+                  database:
+                    description: Database is the name of the database to configure
+                    type: string
+                  host:
+                    description: Host is the host of the PostgreSQL server to configure
+                    type: string
+                  port:
+                    description: Port is the port of the PostgreSQL server to configure
+                    type: integer
+                  secretRef:
+                    description: SecretRef is a reference to a secret in the same
+                      namespace that contains credentials to authenticate against
+                      the PostgreSQL server
+                    properties:
+                      secretName:
+                        description: SecretName is the name of the secret.
+                        type: string
+                    type: object
+                  variant:
+                    description: 'Variant is for specific database-as-a-service providers.
+                      Valid values are: aiven, standard. The default value is "standard"'
+                    type: string
+                required:
+                - secretRef
+                type: object
+              role:
+                description: Role to grant privileges to
+                type: string
+              schemaPrivileges:
+                description: 'SchemaPrivileges is the list of privileges to grant
+                  Must be one of: CREATE, USAGE, ALL'
+                items:
+                  type: string
+                type: array
+              schemas:
+                description: Schemas  is the list of schemas to grant privileges for
+                items:
+                  type: string
+                type: array
+              sequencePrivileges:
+                description: 'SequencePrivileges is the list of privileges to grant
+                  Must be one of: USAGE, SELECT, UPDATE, ALL'
+                items:
+                  type: string
+                type: array
+              sequences:
+                description: Sequences is the list of sequences to grant privileges
+                  for
+                items:
+                  description: PostgresIdentifier represents an identifier for a table,
+                    e.g. a pair of schema and table name.
+                  properties:
+                    name:
+                      description: Name is the name of the table
+                      type: string
+                    schema:
+                      description: Schema is the name of the schema the table resides
+                        in
+                      type: string
+                  required:
+                  - name
+                  - schema
+                  type: object
+                type: array
+              tablePrivileges:
+                description: 'TablePrivileges is the list of privileges to grant Must
+                  be one of: SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES,
+                  TRIGGER, ALL'
+                items:
+                  type: string
+                type: array
+              tables:
+                description: Tables is the list of tables to grant privileges for
+                items:
+                  description: PostgresIdentifier represents an identifier for a table,
+                    e.g. a pair of schema and table name.
+                  properties:
+                    name:
+                      description: Name is the name of the table
+                      type: string
+                    schema:
+                      description: Schema is the name of the schema the table resides
+                        in
+                      type: string
+                  required:
+                  - name
+                  - schema
+                  type: object
+                type: array
+            required:
+            - postgresRef
+            - role
+            type: object
+          status:
+            description: PostgresGrantStatus defines the observed state of PostgresGrant
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

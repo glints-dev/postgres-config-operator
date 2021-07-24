@@ -82,8 +82,8 @@ spec:
                   If the list is empty or omitted, publication is created for all
                   tables
                 items:
-                  description: PostgresTableIdentifier represents an identifier for
-                    a table, e.g. a pair of schema and table name.
+                  description: PostgresIdentifier represents an identifier for a table,
+                    e.g. a pair of schema and table name.
                   properties:
                     name:
                       description: Name is the name of the table

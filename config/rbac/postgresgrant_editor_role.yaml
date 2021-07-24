@@ -1,0 +1,24 @@
+# permissions for end users to edit postgresgrants.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: postgresgrant-editor-role
+rules:
+- apiGroups:
+  - postgres.glints.com
+  resources:
+  - postgresgrants
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - postgres.glints.com
+  resources:
+  - postgresgrants/status
+  verbs:
+  - get

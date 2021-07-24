@@ -50,6 +50,32 @@ rules:
 - apiGroups:
   - postgres.glints.com
   resources:
+  - postgresgrants
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - postgres.glints.com
+  resources:
+  - postgresgrants/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - postgres.glints.com
+  resources:
+  - postgresgrants/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - postgres.glints.com
+  resources:
   - postgrespublications
   verbs:
   - create
