@@ -47,6 +47,7 @@ func SetupPostgresConnection(
 			string(secretRef.Data["POSTGRES_PASSWORD"]),
 		),
 		Host:    fmt.Sprintf("%s:%d", ref.Host, ref.Port),
+		Path:    fmt.Sprintf("/%s", ref.Database),
 		RawPath: ref.Database,
 	}
 	conn, err := pgx.Connect(ctx, connURL.String())
