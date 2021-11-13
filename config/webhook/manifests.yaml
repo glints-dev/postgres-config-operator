@@ -12,7 +12,7 @@ webhooks:
   clientConfig:
     service:
       name: webhook-service
-      namespace: system
+      namespace: postgres-config-system
       path: /validate-postgres-glints-com-v1alpha1-postgresgrant
   failurePolicy: Fail
   name: vpostgresgrant.kb.io
