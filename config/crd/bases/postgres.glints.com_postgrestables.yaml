@@ -1,0 +1,119 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.4.1
+  creationTimestamp: null
+  name: postgrestables.postgres.glints.com
+spec:
+  group: postgres.glints.com
+  names:
+    kind: PostgresTable
+    listKind: PostgresTableList
+    plural: postgrestables
+    singular: postgrestable
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: PostgresTable is the Schema for the postgrestables API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: PostgresTableSpec defines the desired state of PostgresTable
+            properties:
+              columns:
+                description: Columns is the list of columns to be created
+                items:
+                  description: PostgresColumn represents a column
+                  properties:
+                    dataType:
+                      description: DataType is the data type of the column
+                      type: string
+                    name:
+                      description: Name of the column
+                      type: string
+                    nullable:
+                      description: Nullable determines whether the created column
+                        can be NULL
+                      type: boolean
+                    primaryKey:
+                      description: PrimaryKey defines whether the column is part of
+                        the table's primary key
+                      type: boolean
+                  required:
+                  - dataType
+                  - name
+                  - nullable
+                  - primaryKey
+                  type: object
+                type: array
+              name:
+                description: Name is the name of the table
+                type: string
+              postgresRef:
+                description: PostgresRef is a reference to the PostgreSQL server to
+                  configure
+                properties:
+                  database:
+                    description: Database is the name of the database to configure
+                    type: string
+                  host:
+                    description: Host is the host of the PostgreSQL server to configure
+                    type: string
+                  port:
+                    description: Port is the port of the PostgreSQL server to configure
+                    type: integer
+                  secretRef:
+                    description: SecretRef is a reference to a secret in the same
+                      namespace that contains credentials to authenticate against
+                      the PostgreSQL server
+                    properties:
+                      secretName:
+                        description: SecretName is the name of the secret.
+                        type: string
+                    type: object
+                  variant:
+                    description: 'Variant is for specific database-as-a-service providers.
+                      Valid values are: aiven, standard. The default value is "standard"'
+                    type: string
+                required:
+                - secretRef
+                type: object
+              schema:
+                description: Schema is the name of the schema the table resides in
+                type: string
+            required:
+            - columns
+            - name
+            - postgresRef
+            - schema
+            type: object
+          status:
+            description: PostgresTableStatus defines the observed state of PostgresTable
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

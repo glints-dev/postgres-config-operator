@@ -1,0 +1,24 @@
+# permissions for end users to edit postgrestables.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: postgrestable-editor-role
+rules:
+- apiGroups:
+  - postgres.glints.com
+  resources:
+  - postgrestables
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - postgres.glints.com
+  resources:
+  - postgrestables/status
+  verbs:
+  - get

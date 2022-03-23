@@ -37,4 +37,13 @@ resources:
   webhooks:
     validation: true
     webhookVersion: v1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: glints.com
+  group: postgres
+  kind: PostgresTable
+  path: github.com/glints-dev/postgres-config-operator/api/v1alpha1
+  version: v1alpha1
 version: "3"

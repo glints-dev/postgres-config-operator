@@ -3,4 +3,5 @@ resources:
 - postgres_v1alpha1_postgresconfig.yaml
 - postgres_v1alpha1_postgrespublication.yaml
 - postgres_v1alpha1_postgresgrant.yaml
+- postgres_v1alpha1_postgrestable.yaml
 #+kubebuilder:scaffold:manifestskustomizesamples

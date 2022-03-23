@@ -99,3 +99,29 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - postgres.glints.com
+  resources:
+  - postgrestables
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - postgres.glints.com
+  resources:
+  - postgrestables/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - postgres.glints.com
+  resources:
+  - postgrestables/status
+  verbs:
+  - get
+  - patch
+  - update

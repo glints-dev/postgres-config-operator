@@ -8,6 +8,7 @@ This operator is written using the [Operator SDK](https://sdk.operatorframework.
 ## Operator Features
 
 - Creating and maintaining [publications](https://www.postgresql.org/docs/current/sql-createpublication.html)
+- Creating [tables](https://www.postgresql.org/docs/current/sql-createtable.html)
 - (Coming soon) Creating and maintaining [roles](https://www.postgresql.org/docs/13/sql-createrole.html)
 
 ## Getting Started
@@ -35,3 +36,7 @@ Testing can be done locally by simply running:
 ```
 make test
 ```
+
+## Examples
+
+Example manifests can be found under config/samples/.

@@ -84,15 +84,6 @@ var _ = BeforeSuite(func() {
 	err = postgresv1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = postgresv1alpha1.AddToScheme(scheme.Scheme)
-	Expect(err).NotTo(HaveOccurred())
-
-	err = postgresv1alpha1.AddToScheme(scheme.Scheme)
-	Expect(err).NotTo(HaveOccurred())
-
-	err = postgresv1alpha1.AddToScheme(scheme.Scheme)
-	Expect(err).NotTo(HaveOccurred())
-
 	//+kubebuilder:scaffold:scheme
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
@@ -115,6 +106,13 @@ var _ = BeforeSuite(func() {
 		Client: k8sManager.GetClient(),
 		Scheme: k8sManager.GetScheme(),
 		Log:    ctrl.Log.WithName("controllers").WithName("postgrespublication"),
+	}).SetupWithManager(k8sManager)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = (&PostgresTableReconciler{
+		Client: k8sManager.GetClient(),
+		Scheme: k8sManager.GetScheme(),
+		Log:    ctrl.Log.WithName("controllers").WithName("postgrestable"),
 	}).SetupWithManager(k8sManager)
 	Expect(err).NotTo(HaveOccurred())
 

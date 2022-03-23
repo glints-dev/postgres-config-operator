@@ -1,0 +1,21 @@
+apiVersion: postgres.glints.com/v1alpha1
+kind: PostgresTable
+metadata:
+  name: postgrestable-sample
+spec:
+  postgresRef:
+    host: postgres.default
+    port: 5432
+    database: postgres
+    secretRef:
+      secretName: postgres
+  name: my_table
+  schema: public
+  columns:
+  - name: id
+    dataType: uuid
+    nullable: false
+    primaryKey: true
+  - name: foo
+    dataType: string
+    nullable: true
