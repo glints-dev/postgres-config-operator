@@ -62,7 +62,7 @@ type PostgresConfigReconciler struct {
 // move the current state of the cluster closer to the desired state.
 //
 // For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.8.3/pkg/reconcile
+// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.11.1/pkg/reconcile
 func (r *PostgresConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := r.Log.WithValues("postgresconfig", req.NamespacedName)
 	ctx = utils.WithRequestLogger(ctx, req, "postgresconfig", r.Log)
