@@ -47,10 +47,6 @@ type PostgresTableReconciler struct {
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the PostgresTable object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.11.0/pkg/reconcile
@@ -138,9 +134,6 @@ func (r *PostgresTableReconciler) createTable(
 	}
 
 	sql := r.buildCreateTableQuery(table)
-	r.Log.Info(fmt.Sprintf("executing: %s", sql))
-	r.recorder.Eventf(table, corev1.EventTypeNormal, "executing: %s", sql)
-
 	if _, err := conn.Exec(ctx, sql); err != nil {
 		return fmt.Errorf("failed to execute query: %w", err)
 	}
@@ -176,10 +169,12 @@ func (r *PostgresTableReconciler) buildCreateTableQuery(
 
 	var primaryKeys []string
 	for _, column := range table.Spec.Columns {
-		primaryKeys = append(
-			primaryKeys,
-			pgx.Identifier{column.Name}.Sanitize(),
-		)
+		if column.PrimaryKey {
+			primaryKeys = append(
+				primaryKeys,
+				pgx.Identifier{column.Name}.Sanitize(),
+			)
+		}
 	}
 
 	var columnClauses []string
@@ -199,7 +194,7 @@ func (r *PostgresTableReconciler) buildCreateTableQuery(
 	if len(primaryKeys) > 0 {
 		columnClauses = append(
 			columnClauses,
-			fmt.Sprintf("PRIMARY KEY (%s)", strings.Join(primaryKeys, "\n")))
+			fmt.Sprintf("PRIMARY KEY (%s)", strings.Join(primaryKeys, ", ")))
 	}
 
 	sql := fmt.Sprintf(
