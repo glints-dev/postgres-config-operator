@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -30,6 +31,8 @@ import (
 	postgresv1alpha1 "github.com/glints-dev/postgres-config-operator/api/v1alpha1"
 	"github.com/glints-dev/postgres-config-operator/controllers/utils"
 	"github.com/go-logr/logr"
+	"github.com/jackc/pgconn"
+	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v4"
 )
 
@@ -109,7 +112,7 @@ func (r *PostgresTableReconciler) reconcile(
 ) (ctrl.Result, error) {
 	r.Log.Info("reconcilling table", "table.Name", table.Name)
 
-	err := r.createTable(ctx, conn, table)
+	created, err := r.createTable(ctx, conn, table)
 	if err != nil {
 		r.recorder.Eventf(
 			table,
@@ -121,6 +124,19 @@ func (r *PostgresTableReconciler) reconcile(
 		return ctrl.Result{Requeue: true}, nil
 	}
 
+	if !created {
+		if err := r.alterExistingTable(ctx, conn, table); err != nil {
+			r.recorder.Eventf(
+				table,
+				corev1.EventTypeWarning,
+				EventTypeFailedReconcile,
+				"failed to alter existing table: %v",
+				err,
+			)
+			return ctrl.Result{Requeue: true}, nil
+		}
+	}
+
 	return ctrl.Result{}, nil
 }
 
@@ -128,17 +144,25 @@ func (r *PostgresTableReconciler) createTable(
 	ctx context.Context,
 	conn *pgx.Conn,
 	table *postgresv1alpha1.PostgresTable,
-) error {
+) (bool, error) {
 	if err := r.ensureSchemaExists(ctx, conn, table); err != nil {
-		return fmt.Errorf("failed to ensure schema exists: %w", err)
+		return false, fmt.Errorf("failed to ensure schema exists: %w", err)
 	}
 
 	sql := r.buildCreateTableQuery(table)
-	if _, err := conn.Exec(ctx, sql); err != nil {
-		return fmt.Errorf("failed to execute query: %w", err)
+	_, err := conn.Exec(ctx, sql)
+
+	tableCreated := true
+	if err != nil {
+		pgErr, ok := err.(*pgconn.PgError)
+		if ok && pgErr.Code == pgerrcode.DuplicateTable {
+			tableCreated = false
+		} else {
+			return false, fmt.Errorf("failed to execute query: %w", err)
+		}
 	}
 
-	return nil
+	return tableCreated, nil
 }
 
 func (r *PostgresTableReconciler) ensureSchemaExists(
@@ -204,6 +228,14 @@ func (r *PostgresTableReconciler) buildCreateTableQuery(
 	)
 
 	return sql
+}
+
+func (r *PostgresTableReconciler) alterExistingTable(
+	ctx context.Context,
+	conn *pgx.Conn,
+	table *postgresv1alpha1.PostgresTable,
+) error {
+	return errors.New("altering existing table not implemented yet")
 }
 
 // SetupWithManager sets up the controller with the Manager.
