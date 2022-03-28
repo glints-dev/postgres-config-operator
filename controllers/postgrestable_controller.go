@@ -18,7 +18,6 @@ package controllers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -235,7 +234,66 @@ func (r *PostgresTableReconciler) alterExistingTable(
 	conn *pgx.Conn,
 	table *postgresv1alpha1.PostgresTable,
 ) error {
-	return errors.New("altering existing table not implemented yet")
+	columnNames := make(map[string]struct{})
+	var columnName string
+	if _, err := conn.QueryFunc(
+		ctx,
+		`
+		SELECT column_name FROM information_schema.columns
+		WHERE table_schema = $1 AND table_name = $2
+		`,
+		[]interface{}{
+			table.Spec.Schema,
+			table.Spec.Name,
+		},
+		[]interface{}{
+			&columnName,
+		},
+		func(row pgx.QueryFuncRow) error {
+			columnNames[columnName] = struct{}{}
+			return nil
+		},
+	); err != nil {
+		return fmt.Errorf("failed to get existing column names: %w", err)
+	}
+
+	var columnsToAdd []postgresv1alpha1.PostgresColumn
+	for _, column := range table.Spec.Columns {
+		if _, ok := columnNames[column.Name]; !ok {
+			columnsToAdd = append(columnsToAdd, column)
+		}
+	}
+
+	tx, err := conn.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	for _, column := range columnsToAdd {
+		query := []string{
+			fmt.Sprintf(
+				"ALTER TABLE %s ADD COLUMN %s %s",
+				pgx.Identifier{table.Spec.Schema, table.Spec.Name}.Sanitize(),
+				pgx.Identifier{column.Name}.Sanitize(),
+				pgx.Identifier{column.DataType}.Sanitize(),
+			),
+		}
+
+		if !column.Nullable {
+			query = append(query, "NOT NULL")
+		}
+
+		if _, err := tx.Exec(ctx, strings.Join(query, " ")); err != nil {
+			return fmt.Errorf("failed to ALTER TABLE: %w", err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit: %w", err)
+	}
+
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

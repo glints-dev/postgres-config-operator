@@ -7,6 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	postgresv1alpha1 "github.com/glints-dev/postgres-config-operator/api/v1alpha1"
 	utils "github.com/glints-dev/postgres-config-operator/controllers/utils"
@@ -28,7 +29,7 @@ var _ = Context("Inside of a new Postgres instance", func() {
 		defer DeleteNamespace(ctx, namespace)
 	})
 
-	Describe("Tables", func() {
+	Describe("Table creation", func() {
 		tests := []struct {
 			name  string
 			input []postgresv1alpha1.PostgresColumn
@@ -109,6 +110,66 @@ var _ = Context("Inside of a new Postgres instance", func() {
 				waitForColumns(ctx, tableIdentifier, test.input)
 			})
 		}
+	})
+
+	Describe("Table modification", func() {
+		tableColumns := []postgresv1alpha1.PostgresColumn{
+			{
+				Name:       "id",
+				PrimaryKey: true,
+				DataType:   "uuid",
+				Nullable:   false,
+			},
+		}
+
+		tableIdentifier := postgresv1alpha1.PostgresIdentifier{
+			Name:   "test",
+			Schema: "my_schema",
+		}
+
+		var table *postgresv1alpha1.PostgresTable
+
+		BeforeEach(func() {
+			table = &postgresv1alpha1.PostgresTable{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "table-test",
+					Namespace: namespace.Name,
+				},
+				Spec: postgresv1alpha1.PostgresTableSpec{
+					PostgresRef:        PostgresContainerRef(ctx),
+					PostgresIdentifier: tableIdentifier,
+					Columns:            tableColumns,
+				},
+			}
+
+			err := k8sClient.Create(ctx, table)
+			Expect(err).NotTo(HaveOccurred(), "failed to create PostgresTable resource")
+			waitForColumns(ctx, tableIdentifier, tableColumns)
+		})
+
+		It("should add new column", func() {
+			err := k8sClient.Get(ctx, types.NamespacedName{
+				Namespace: namespace.Name,
+				Name:      "table-test",
+			}, table)
+			Expect(err).NotTo(HaveOccurred(), "failed to get latest PostgresTable resource")
+
+			table.Spec.Columns = append(
+				table.Spec.Columns,
+				postgresv1alpha1.PostgresColumn{
+					Name:       "foo",
+					PrimaryKey: false,
+					DataType:   "uuid",
+					Nullable:   true,
+				},
+			)
+
+			err = k8sClient.Update(ctx, table)
+			Expect(err).NotTo(HaveOccurred(), "failed to update PostgresTable resource")
+
+			waitForColumns(ctx, tableIdentifier, table.Spec.Columns)
+		})
+
 	})
 })
 
