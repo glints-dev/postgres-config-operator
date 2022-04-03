@@ -37,21 +37,6 @@ type PostgresTableSpec struct {
 	PostgresIdentifier `json:""`
 }
 
-// PostgresColumn represents a column
-type PostgresColumn struct {
-	// Name of the column
-	Name string `json:"name"`
-
-	// DataType is the data type of the column
-	DataType string `json:"dataType"`
-
-	// Nullable determines whether the created column can be NULL
-	Nullable bool `json:"nullable"`
-
-	// PrimaryKey defines whether the column is part of the table's primary key
-	PrimaryKey bool `json:"primaryKey"`
-}
-
 // PostgresTableStatus defines the observed state of PostgresTable
 type PostgresTableStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster

@@ -36,6 +36,21 @@ type PostgresRef struct {
 	Variant string `json:"variant,omitempty"`
 }
 
+// PostgresColumn represents a column
+type PostgresColumn struct {
+	// Name of the column
+	Name string `json:"name"`
+
+	// DataType is the data type of the column
+	DataType string `json:"dataType"`
+
+	// Nullable determines whether the created column can be NULL
+	Nullable bool `json:"nullable"`
+
+	// PrimaryKey defines whether the column is part of the table's primary key
+	PrimaryKey bool `json:"primaryKey"`
+}
+
 // PostgresIdentifier represents an identifier for a table, e.g. a pair of
 // schema and table name.
 type PostgresIdentifier struct {

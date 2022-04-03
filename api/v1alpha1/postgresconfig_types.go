@@ -32,6 +32,9 @@ type PostgresConfigSpec struct {
 
 	// Publications is a list of publications to be created
 	Publications []Publication `json:"publications,omitempty"`
+
+	// Tables is a list of tables to be created
+	Tables []Table `json:"table,omitempty"`
 }
 
 // Publication represents a PUBLICATION
@@ -49,6 +52,16 @@ type Publication struct {
 	// delete, and truncate. If left empty or omitted, all operations are
 	// published
 	Operations []string `json:"operations,omitempty"`
+}
+
+// Table represents a table
+// https://www.postgresql.org/docs/current/sql-createtable.html
+type Table struct {
+	// Columns is the list of columns to be created
+	Columns []PostgresColumn `json:"columns"`
+
+	// Inherit fields from PostgresIdentifier
+	PostgresIdentifier `json:""`
 }
 
 // PostgresConfigStatus defines the observed state of PostgresConfig

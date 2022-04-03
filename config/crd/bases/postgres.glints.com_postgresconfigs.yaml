@@ -104,6 +104,50 @@ spec:
                   - name
                   type: object
                 type: array
+              table:
+                description: Tables is a list of tables to be created
+                items:
+                  description: Table represents a table https://www.postgresql.org/docs/current/sql-createtable.html
+                  properties:
+                    columns:
+                      description: Columns is the list of columns to be created
+                      items:
+                        description: PostgresColumn represents a column
+                        properties:
+                          dataType:
+                            description: DataType is the data type of the column
+                            type: string
+                          name:
+                            description: Name of the column
+                            type: string
+                          nullable:
+                            description: Nullable determines whether the created column
+                              can be NULL
+                            type: boolean
+                          primaryKey:
+                            description: PrimaryKey defines whether the column is
+                              part of the table's primary key
+                            type: boolean
+                        required:
+                        - dataType
+                        - name
+                        - nullable
+                        - primaryKey
+                        type: object
+                      type: array
+                    name:
+                      description: Name is the name of the table
+                      type: string
+                    schema:
+                      description: Schema is the name of the schema the table resides
+                        in
+                      type: string
+                  required:
+                  - columns
+                  - name
+                  - schema
+                  type: object
+                type: array
             required:
             - postgresRef
             type: object
