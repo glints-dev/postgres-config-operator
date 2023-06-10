@@ -88,7 +88,7 @@ func (r *PostgresGrant) SetupWebhookWithManager(mgr ctrl.Manager) error {
 		Complete()
 }
 
-//+kubebuilder:webhook:path=/validate-postgres-glints-com-v1alpha1-postgresgrant,mutating=false,failurePolicy=fail,sideEffects=None,groups=postgres.glints.com,resources=postgresgrants,verbs=create;update,versions=v1alpha1,name=vpostgresgrant.kb.io,admissionReviewVersions={v1,v1beta1}
+//+kubebuilder:webhook:path=/validate-postgres-glints-com-v1alpha1-postgresgrant,mutating=false,failurePolicy=fail,sideEffects=None,groups=postgres.glints.com,resources=postgresgrants,verbs=create;update,versions=v1alpha1,name=vpostgresgrant.kb.io,admissionReviewVersions=v1
 
 var _ webhook.Validator = &PostgresGrant{}
 
