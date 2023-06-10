@@ -10,12 +10,13 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	postgresv1alpha1 "github.com/glints-dev/postgres-config-operator/api/v1alpha1"
+	"github.com/glints-dev/postgres-config-operator/controllers/testutils"
 )
 
 var _ = Context("Inside of a new Postgres instance", func() {
 	ctx := context.Background()
-	SetupPostgresContainer(ctx)
-	SetupPostgresConnection(ctx)
+	testutils.SetupPostgresContainer(ctx)
+	testutils.SetupPostgresConnection(ctx)
 
 	var namespace *corev1.Namespace
 
@@ -39,7 +40,7 @@ var _ = Context("Inside of a new Postgres instance", func() {
 					Namespace: namespace.Name,
 				},
 				Spec: postgresv1alpha1.PostgresPublicationSpec{
-					PostgresRef: PostgresContainerRef(ctx),
+					PostgresRef: testutils.PostgresContainerRef(ctx),
 					Name:        publicationName,
 					Tables: []postgresv1alpha1.PostgresIdentifier{
 						{
@@ -66,7 +67,7 @@ var _ = Context("Inside of a new Postgres instance", func() {
 					Namespace: namespace.Name,
 				},
 				Spec: postgresv1alpha1.PostgresPublicationSpec{
-					PostgresRef: PostgresContainerRef(ctx),
+					PostgresRef: testutils.PostgresContainerRef(ctx),
 					Name:        publicationName,
 					Tables: []postgresv1alpha1.PostgresIdentifier{
 						{
@@ -84,7 +85,7 @@ var _ = Context("Inside of a new Postgres instance", func() {
 			waitForPublication(ctx, publicationName)
 
 			Eventually(func() bool {
-				row := postgresConn.QueryRow(
+				row := testutils.PostgresConn.QueryRow(
 					ctx,
 					"SELECT pubinsert, pubupdate, pubdelete FROM pg_publication WHERE pubname = $1",
 					publicationName,
@@ -111,7 +112,7 @@ var _ = Context("Inside of a new Postgres instance", func() {
 					Namespace: namespace.Name,
 				},
 				Spec: postgresv1alpha1.PostgresPublicationSpec{
-					PostgresRef: PostgresContainerRef(ctx),
+					PostgresRef: testutils.PostgresContainerRef(ctx),
 					Name:        publicationName,
 					Tables: []postgresv1alpha1.PostgresIdentifier{
 						{
@@ -145,7 +146,7 @@ var _ = Context("Inside of a new Postgres instance", func() {
 			}).ShouldNot(HaveOccurred(), "failed to update PostgresPublication resource")
 
 			Eventually(func() int {
-				row := postgresConn.QueryRow(
+				row := testutils.PostgresConn.QueryRow(
 					ctx,
 					`SELECT COUNT(*) AS count FROM pg_publication_tables WHERE
 						pubname = $1 AND 
@@ -175,7 +176,7 @@ var _ = Context("Inside of a new Postgres instance", func() {
 					Namespace: namespace.Name,
 				},
 				Spec: postgresv1alpha1.PostgresPublicationSpec{
-					PostgresRef: PostgresContainerRef(ctx),
+					PostgresRef: testutils.PostgresContainerRef(ctx),
 					Name:        publicationName,
 					Tables: []postgresv1alpha1.PostgresIdentifier{
 						{
@@ -210,7 +211,7 @@ var _ = Context("Inside of a new Postgres instance", func() {
 			}).ShouldNot(HaveOccurred(), "failed to update PostgresPublication resource")
 
 			Eventually(func() int {
-				row := postgresConn.QueryRow(
+				row := testutils.PostgresConn.QueryRow(
 					ctx,
 					`SELECT COUNT(*) AS count FROM pg_publication_tables WHERE
 						pubname = $1 AND 
@@ -238,7 +239,7 @@ var _ = Context("Inside of a new Postgres instance", func() {
 					Namespace: namespace.Name,
 				},
 				Spec: postgresv1alpha1.PostgresPublicationSpec{
-					PostgresRef: PostgresContainerRef(ctx),
+					PostgresRef: testutils.PostgresContainerRef(ctx),
 					Name:        publicationName,
 					Tables: []postgresv1alpha1.PostgresIdentifier{
 						{
@@ -266,7 +267,7 @@ var _ = Context("Inside of a new Postgres instance", func() {
 			}).ShouldNot(HaveOccurred(), "failed to update PostgresPublication resource")
 
 			Eventually(func() bool {
-				row := postgresConn.QueryRow(
+				row := testutils.PostgresConn.QueryRow(
 					ctx,
 					"SELECT pubinsert, pubupdate, pubdelete FROM pg_publication WHERE pubname = $1",
 					publicationName,
@@ -292,7 +293,7 @@ var _ = Context("Inside of a new Postgres instance", func() {
 					Namespace: namespace.Name,
 				},
 				Spec: postgresv1alpha1.PostgresPublicationSpec{
-					PostgresRef: PostgresContainerRef(ctx),
+					PostgresRef: testutils.PostgresContainerRef(ctx),
 					Name:        publicationName,
 					Tables: []postgresv1alpha1.PostgresIdentifier{
 						{
@@ -312,7 +313,7 @@ var _ = Context("Inside of a new Postgres instance", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to delete PostgresPublication resource")
 
 			Eventually(func() int {
-				row := postgresConn.QueryRow(
+				row := testutils.PostgresConn.QueryRow(
 					ctx,
 					"SELECT COUNT(*) AS count FROM pg_publication WHERE pubname = $1",
 					"jobs",
@@ -332,7 +333,7 @@ var _ = Context("Inside of a new Postgres instance", func() {
 // within PostgreSQL, until timeout is reached.
 func waitForPublication(ctx context.Context, name string) {
 	Eventually(func() int {
-		row := postgresConn.QueryRow(
+		row := testutils.PostgresConn.QueryRow(
 			ctx,
 			"SELECT COUNT(*) AS count FROM pg_publication WHERE pubname = $1",
 			name,

@@ -10,13 +10,14 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	postgresv1alpha1 "github.com/glints-dev/postgres-config-operator/api/v1alpha1"
+	"github.com/glints-dev/postgres-config-operator/controllers/testutils"
 	utils "github.com/glints-dev/postgres-config-operator/controllers/utils"
 )
 
 var _ = Context("Inside of a new Postgres instance", func() {
 	ctx := context.Background()
-	SetupPostgresContainer(ctx)
-	SetupPostgresConnection(ctx)
+	testutils.SetupPostgresContainer(ctx)
+	testutils.SetupPostgresConnection(ctx)
 
 	var namespace *corev1.Namespace
 
@@ -98,7 +99,7 @@ var _ = Context("Inside of a new Postgres instance", func() {
 						Namespace: namespace.Name,
 					},
 					Spec: postgresv1alpha1.PostgresTableSpec{
-						PostgresRef:        PostgresContainerRef(ctx),
+						PostgresRef:        testutils.PostgresContainerRef(ctx),
 						PostgresIdentifier: tableIdentifier,
 						Columns:            test.input,
 					},
@@ -136,7 +137,7 @@ var _ = Context("Inside of a new Postgres instance", func() {
 					Namespace: namespace.Name,
 				},
 				Spec: postgresv1alpha1.PostgresTableSpec{
-					PostgresRef:        PostgresContainerRef(ctx),
+					PostgresRef:        testutils.PostgresContainerRef(ctx),
 					PostgresIdentifier: tableIdentifier,
 					Columns:            tableColumns,
 				},
@@ -180,7 +181,7 @@ func waitForColumns(
 	tableIdentifier postgresv1alpha1.PostgresIdentifier,
 	columns []postgresv1alpha1.PostgresColumn,
 ) {
-	Eventually(postgresConn).Should(utils.HaveColumns(
+	Eventually(testutils.PostgresConn).Should(utils.HaveColumns(
 		ctx,
 		tableIdentifier.Schema,
 		tableIdentifier.Name,

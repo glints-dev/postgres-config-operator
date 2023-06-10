@@ -4,6 +4,7 @@ import (
 	"context"
 
 	postgresv1alpha1 "github.com/glints-dev/postgres-config-operator/api/v1alpha1"
+	"github.com/glints-dev/postgres-config-operator/controllers/testutils"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -12,8 +13,8 @@ import (
 
 var _ = Context("Inside of a new Postgres instance", func() {
 	ctx := context.Background()
-	SetupPostgresContainer(ctx)
-	SetupPostgresConnection(ctx)
+	testutils.SetupPostgresContainer(ctx)
+	testutils.SetupPostgresConnection(ctx)
 
 	var namespace *corev1.Namespace
 
@@ -28,10 +29,10 @@ var _ = Context("Inside of a new Postgres instance", func() {
 
 	Describe("Grants", func() {
 		It("should grant permissions to given database", func() {
-			_, err := postgresConn.Exec(ctx, "CREATE DATABASE test_db")
+			_, err := testutils.PostgresConn.Exec(ctx, "CREATE DATABASE test_db")
 			Expect(err).NotTo(HaveOccurred())
 
-			_, err = postgresConn.Exec(ctx, "CREATE ROLE test_role")
+			_, err = testutils.PostgresConn.Exec(ctx, "CREATE ROLE test_role")
 			Expect(err).NotTo(HaveOccurred())
 
 			grant := &postgresv1alpha1.PostgresGrant{
@@ -40,7 +41,7 @@ var _ = Context("Inside of a new Postgres instance", func() {
 					Namespace: namespace.Name,
 				},
 				Spec: postgresv1alpha1.PostgresGrantSpec{
-					PostgresRef: PostgresContainerRef(ctx),
+					PostgresRef: testutils.PostgresContainerRef(ctx),
 					Databases:   []string{"test_db"},
 					Role:        "test_role",
 				},
@@ -50,7 +51,7 @@ var _ = Context("Inside of a new Postgres instance", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			Eventually(func() bool {
-				row := postgresConn.QueryRow(
+				row := testutils.PostgresConn.QueryRow(
 					ctx,
 					"SELECT has_database_privilege($1, $2, $3)",
 					"test_role",

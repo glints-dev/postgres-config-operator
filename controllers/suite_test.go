@@ -20,15 +20,12 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v4"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/wait"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -44,6 +41,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	postgresv1alpha1 "github.com/glints-dev/postgres-config-operator/api/v1alpha1"
+	"github.com/glints-dev/postgres-config-operator/controllers/testutils"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -55,13 +53,6 @@ var k8sClient client.Client
 var testEnv *envtest.Environment
 var ctx context.Context
 var cancel context.CancelFunc
-
-var postgresContainer testcontainers.Container
-var postgresConn *pgx.Conn
-
-const postgresUser = "glints"
-const postgresPassword = "glints"
-const postgresSecretName = "postgres"
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -132,64 +123,6 @@ var _ = AfterSuite(func() {
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
 })
-
-// SetupPostgresContainer creates a PostgreSQL container for testing purposes.
-// The created container is accessible through the postgresContainer global.
-func SetupPostgresContainer(ctx context.Context) {
-	BeforeEach(func() {
-		const port = "5432/tcp"
-		req := testcontainers.ContainerRequest{
-			Image: "postgres:14-alpine",
-			Env: map[string]string{
-				"POSTGRES_USER":     postgresUser,
-				"POSTGRES_PASSWORD": postgresPassword,
-			},
-			ExposedPorts: []string{port},
-			WaitingFor:   wait.ForListeningPort(port),
-		}
-
-		container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-			ContainerRequest: req,
-			Started:          true,
-		})
-		Expect(err).NotTo(HaveOccurred())
-
-		retVal, err := container.Exec(ctx, []string{
-			"psql", "-U", postgresUser, "-c", "CREATE EXTENSION pgcrypto;",
-		})
-		Expect(err).NotTo(HaveOccurred())
-		Expect(retVal).To(Equal(0))
-
-		postgresContainer = container
-	})
-
-	AfterEach(func() {
-		postgresContainer.Terminate(ctx)
-	})
-}
-
-// SetupPostgresConnection creates a connection to the test PostgreSQL
-// container. This must be run after SetupPostgresContainer.
-func SetupPostgresConnection(ctx context.Context) {
-	BeforeEach(func() {
-		endpoint, err := postgresContainer.Endpoint(ctx, "")
-		Expect(err).NotTo(HaveOccurred())
-
-		conn, err := pgx.Connect(ctx, fmt.Sprintf(
-			"postgres://%s:%s@%s/glints",
-			postgresUser,
-			postgresPassword,
-			endpoint,
-		))
-		Expect(err).NotTo(HaveOccurred())
-
-		postgresConn = conn
-	})
-
-	AfterEach(func() {
-		postgresConn.Close(ctx)
-	})
-}
 
 // CreateTestNamespace creates an independent namespace for testing.
 func CreateTestNamespace(ctx context.Context) *corev1.Namespace {
@@ -289,37 +222,17 @@ func ignoreMethodNotAllowed(err error) error {
 	return err
 }
 
-// PostgresContainerRef returns a reference to the test Postgres container,
-// which can be used within a PostgresConfig resource.
-func PostgresContainerRef(ctx context.Context) postgresv1alpha1.PostgresRef {
-	endpoint, err := postgresContainer.Endpoint(ctx, "")
-	Expect(err).NotTo(HaveOccurred())
-
-	hostPort := strings.SplitN(endpoint, ":", 2)
-	port, err := strconv.Atoi(hostPort[1])
-	Expect(err).NotTo(HaveOccurred())
-
-	return postgresv1alpha1.PostgresRef{
-		Host:     hostPort[0],
-		Port:     uint16(port),
-		Database: "glints",
-		SecretRef: postgresv1alpha1.SecretRef{
-			SecretName: postgresSecretName,
-		},
-	}
-}
-
 // CreatePostgresSecret creates a Secret that's pre-configured to connect to the
 // test PostgreSQL server.
 func CreatePostgresSecret(ctx context.Context, namespace string) {
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      postgresSecretName,
+			Name:      testutils.PostgresSecretName,
 			Namespace: namespace,
 		},
 		StringData: map[string]string{
-			"POSTGRES_USER":     postgresUser,
-			"POSTGRES_PASSWORD": postgresPassword,
+			"POSTGRES_USER":     testutils.PostgresUser,
+			"POSTGRES_PASSWORD": testutils.PostgresPassword,
 		},
 	}
 
@@ -338,6 +251,6 @@ func createBarebonesTable(ctx context.Context, name string) {
 		pgx.Identifier{fmt.Sprintf("%s_pkey", name)}.Sanitize(),
 	)
 
-	_, err := postgresConn.Exec(ctx, query)
+	_, err := testutils.PostgresConn.Exec(ctx, query)
 	Expect(err).NotTo(HaveOccurred(), "failed to create table %s", name)
 }

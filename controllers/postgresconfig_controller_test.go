@@ -11,12 +11,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	postgresv1alpha1 "github.com/glints-dev/postgres-config-operator/api/v1alpha1"
+	"github.com/glints-dev/postgres-config-operator/controllers/testutils"
 )
 
 var _ = Context("Inside of a new Postgres instance", func() {
 	ctx := context.Background()
-	SetupPostgresContainer(ctx)
-	SetupPostgresConnection(ctx)
+	testutils.SetupPostgresContainer(ctx)
+	testutils.SetupPostgresConnection(ctx)
 
 	var namespace *corev1.Namespace
 
@@ -111,7 +112,7 @@ func createConfigForPublications(
 			Namespace: namespace.Name,
 		},
 		Spec: postgresv1alpha1.PostgresConfigSpec{
-			PostgresRef: PostgresContainerRef(ctx),
+			PostgresRef: testutils.PostgresContainerRef(ctx),
 			Publications: []postgresv1alpha1.Publication{
 				{
 					Name: publicationName,
