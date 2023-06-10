@@ -78,6 +78,14 @@ type PostgresConfigStatus struct {
 type SecretRef struct {
 	// SecretName is the name of the secret.
 	SecretName string `json:"secretName,omitempty"`
+
+	// UsernameKey is the name of the key in the secret storing the username.
+	// The default value is POSTGRES_USER.
+	UsernameKey string `json:"usernameKey,omitempty"`
+
+	// PasswordKey is the name of the key in the secret storing the password.
+	// The default value is POSTGRES_PASSWORD.
+	PasswordKey string `json:"passwordKey,omitempty"`
 }
 
 //+kubebuilder:object:root=true

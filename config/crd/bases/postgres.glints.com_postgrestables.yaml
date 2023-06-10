@@ -82,8 +82,16 @@ spec:
                       namespace that contains credentials to authenticate against
                       the PostgreSQL server
                     properties:
+                      passwordKey:
+                        description: PasswordKey is the name of the key in the secret
+                          storing the password. The default value is POSTGRES_PASSWORD.
+                        type: string
                       secretName:
                         description: SecretName is the name of the secret.
+                        type: string
+                      usernameKey:
+                        description: UsernameKey is the name of the key in the secret
+                          storing the username. The default value is POSTGRES_USER.
                         type: string
                     type: object
                   variant:

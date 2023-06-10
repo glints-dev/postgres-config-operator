@@ -40,11 +40,21 @@ func SetupPostgresConnection(
 		return nil, &ErrGetSecret{Err: err}
 	}
 
+	usernameKey := "POSTGRES_USER"
+	if len(ref.SecretRef.UsernameKey) > 0 {
+		usernameKey = ref.SecretRef.UsernameKey
+	}
+
+	passwordKey := "POSTGRES_PASSWORD"
+	if len(ref.SecretRef.PasswordKey) > 0 {
+		passwordKey = ref.SecretRef.PasswordKey
+	}
+
 	connURL := url.URL{
 		Scheme: "postgres",
 		User: url.UserPassword(
-			string(secretRef.Data["POSTGRES_USER"]),
-			string(secretRef.Data["POSTGRES_PASSWORD"]),
+			string(secretRef.Data[usernameKey]),
+			string(secretRef.Data[passwordKey]),
 		),
 		Host:    fmt.Sprintf("%s:%d", ref.Host, ref.Port),
 		Path:    fmt.Sprintf("/%s", ref.Database),

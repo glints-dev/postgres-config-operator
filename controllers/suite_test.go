@@ -139,7 +139,7 @@ func SetupPostgresContainer(ctx context.Context) {
 	BeforeEach(func() {
 		const port = "5432/tcp"
 		req := testcontainers.ContainerRequest{
-			Image: "postgres:12-alpine",
+			Image: "postgres:14-alpine",
 			Env: map[string]string{
 				"POSTGRES_USER":     postgresUser,
 				"POSTGRES_PASSWORD": postgresPassword,
